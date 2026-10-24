@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apex Compute | Compute Fabric Control</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <!-- Background Canvas Layer -->
+    <div class="bg-layer"></div>
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <div class="logo-mark"></div>
+                <span class="logo-text">Apex<span class="logo-accent">Compute</span></span>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active">Dashboard</a>
+                <a href="#" class="nav-link">Telemetry</a>
+                <a href="#" class="nav-link">Fabric</a>
+                <a href="#" class="nav-link">Security</a>
+                <a href="#" class="nav-link">Settings</a>
+            </div>
+            <div class="nav-actions">
+                <button class="nav-btn ghost" id="system-status-btn">
+                    <span class="btn-dot"></span>
+                    System OK
+                </button>
+                <button class="nav-btn primary">
+                    Deploy
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Hero / Header -->
+        <header class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">Compute Fabric Status</h1>
+                <p class="hero-subtitle">
+                    All systems nominal · <span id="live-clock">00:00:00</span> · 
+                    <span class="status-pill status-ok">Operational</span>
+                </p>
+            </div>
+        </header>
+
+        <!-- Bento Grid Dashboard -->
+        <div class="bento-grid">
+            <!-- Card 1: System Overview -->
+            <article class="card card-wide card-tall">
+                <div class="card-header">
+                    <h3 class="card-title">System Overview</h3>
+                    <div class="chip chip-active">Online</div>
+                </div>
+                <div class="card-body">
+                    <div class="metric-row">
+                        <div class="metric">
+                            <span class="metric-label">CPU</span>
+                            <span class="metric-value" id="cpu-value">--%</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">GPU</span>
+                            <span class="metric-value" id="gpu-value">--%</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Memory</span>
+                            <span class="metric-value" id="mem-value">--%</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Storage</span>
+                            <span class="metric-value" id="disk-value">--%</span>
+                        </div>
+                    </div>
+                    <div class="sparkline-container" id="cpu-sparkline"></div>
+                </div>
+            </article>
+
+            <!-- Card 2: Network Throughput -->
+            <article class="card card-wide">
+                <div class="card-header">
+                    <h3 class="card-title">Network Throughput</h3>
+                    <div class="chip chip-active">10 Gbps</div>
+                </div>
+                <div class="card-body">
+                    <div class="sparkline-container" id="net-sparkline"></div>
+                    <div class="net-stats">
+                        <div class="net-stat">
+                            <span class="net-label">Inbound</span>
+                            <span class="net-value" id="net-in">-- MB/s</span>
+                        </div>
+                        <div class="net-stat">
+                            <span class="net-label">Outbound</span>
+                            <span class="net-value" id="net-out">-- MB/s</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 3: Node Health -->
+            <article class="card card-tall">
+                <div class="card-header">
+                    <h3 class="card-title">Node Health</h3>
+                </div>
+                <div class="card-body">
+                    <div class="node-list">
+                        <div class="node-item">
+                            <span class="node-name">Node-01</span>
+                            <div class="node-bar">
+                                <div class="node-fill" style="width: 92%;"></div>
+                            </div>
+                            <span class="node-pct">92%</span>
+                        </div>
+                        <div class="node-item">
+                            <span class="node-name">Node-02</span>
+                            <div class="node-bar">
+                                <div class="node-fill" style="width: 78%;"></div>
+                            </div>
+                            <span class="node-pct">78%</span>
+                        </div>
+                        <div class="node-item">
+                            <span class="node-name">Node-03</span>
+                            <div class="node-bar">
+                                <div class="node-fill" style="width: 64%;"></div>
+                            </div>
+                            <span class="node-pct">64%</span>
+                        </div>
+                        <div class="node-item">
+                            <span class="node-name">Node-04</span>
+                            <div class="node-bar">
+                                <div class="node-fill" style="width": 91%;"></div>
+                            </div>
+                            <span class="node-pct">91%</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 4: Alerts -->
+            <article class="card card-wide">
+                <div class="card-header">
+                    <h3 class="card-title">Active Alerts</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert-list">
+                        <div class="alert-item alert-low">
+                            <span class="alert-time">00:14:22</span>
+                            <span class="alert-msg">Thermal threshold approached on Node-02</span>
+                        </div>
+                        <div class="alert-item alert-low">
+                            <span class="alert-time">00:08:41</span>
+                            <span class="alert-msg">Package deployment complete: v3.4.1</span>
+                        </div>
+                        <div class="alert-item alert-ok">
+                            <span class="alert-time">00:02:10</span>
+                            <span class="alert-msg">All nodes synchronized</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 5: Storage -->
+            <article class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Storage</h3>
+                </div>
+                <div class="card-body">
+                    <div class="radial-card">
+                        <div class="radial-ring">
+                            <svg class="radial-svg" viewBox="0 0 100 100">
+                                <circle class="rg-track" cx="50" cy="50" r="42"></circle>
+                                <circle class="rg-progress" id="storage-ring" cx="50" cy="50" r="42"></circle>
+                            </svg>
+                            <div class="rg-center">
+                                <span class="rg-val" id="storage-pct">--%</span>
+                                <span class="rg-label">Used</span>
+                            </div>
+                        </div>
+                        <div class="radial-meta">
+                            <div class="rm-item">
+                                <span class="rm-val">4.2 TB</span>
+                                <span class="rm-lbl">Used</span>
+                            </div>
+                            <div class="rm-item">
+                                <span class="rm-val">11.8 TB</span>
+                                <span class="rm-lbl">Free</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <!-- Card 6: Power -->
+            <article class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Power Draw</h3>
+                </div>
+                <div class="card-body">
+                    <div class="sparkline-container" id="power-sparkline"></div>
+                    <div class="power-stats">
+                        <div class="ps-item">
+                            <span class="ps-label">Current Draw</span>
+                            <span class="ps-val" id="power-val">-- kW</span>
+                        </div>
+                        <div class="ps-item">
+                            <span class="ps-label">Efficiency</span>
+                            <span class="ps-val" id="eff-val">--%</span>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
