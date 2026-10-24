@@ -1,0 +1,462 @@
+# Active Assistant Configuration
+# Copy this to config.yaml and customize
+
+# ============================================================
+# API Provider Configuration
+# ============================================================
+api_providers:
+  groq:
+    enabled: true
+    default: true
+    api_key: ""  # Set via env var GROQ_API_KEY or here
+    base_url: "https://api.groq.com/openai/v1"
+    models:
+      vision: "llama-3.2-11b-vision-preview"
+      chat: "llama-3.1-70b-versatile"
+      fast: "llama-3.1-8b-instant"
+      reasoning: "deepseek-r1-distill-llama-70b"
+    rate_limit: 30  # requests per minute
+    timeout: 30
+
+  openai:
+    enabled: false
+    api_key: ""  # Set via env var OPENAI_API_KEY
+    base_url: "https://api.openai.com/v1"
+    models:
+      vision: "gpt-4o-mini"
+      chat: "gpt-4o"
+      fast: "gpt-4o-mini"
+      reasoning: "o1-preview"
+    rate_limit: 50
+    timeout: 60
+
+  anthropic:
+    enabled: false
+    api_key: ""  # Set via env var ANTHROPIC_API_KEY
+    base_url: "https://api.anthropic.com"
+    models:
+      vision: "claude-3-5-sonnet-20241022"
+      chat: "claude-3-5-sonnet-20241022"
+      fast: "claude-3-5-haiku-20241022"
+      reasoning: "claude-3-5-sonnet-20241022"
+    rate_limit: 50
+    timeout: 60
+
+  ollama:
+    enabled: false
+    base_url: "http://localhost:11434"
+    models:
+      vision: "llava:latest"
+      chat: "llama3.1:latest"
+      fast: "llama3.1:8b"
+      reasoning: "deepseek-r1:latest"
+    rate_limit: 0  # Local, no limit
+    timeout: 120
+
+  custom:
+    enabled: false
+    name: "Custom Provider"
+    api_key: ""
+    base_url: ""
+    models:
+      vision: ""
+      chat: ""
+      fast: ""
+      reasoning: ""
+    headers: {}
+    rate_limit: 30
+    timeout: 30
+
+# ============================================================
+# Assistant Behavior Rules
+# ============================================================
+rules:
+  # Screen Monitoring
+  screen_monitoring:
+    enabled: true
+    check_interval_seconds: 5
+    hash_difference_threshold: 5
+    max_image_dimension: 1280
+    jpeg_quality: 80
+    monitored_processes:
+      - "code.exe"
+      - "cursor.exe"
+      - "pycharm64.exe"
+      - "idea64.exe"
+      - "sublime_text.exe"
+      - "notepad++.exe"
+      - "notepad.exe"
+      - "windowsterminal.exe"
+      - "cmd.exe"
+      - "powershell.exe"
+      - "pwsh.exe"
+      - "mintty.exe"
+      - "winword.exe"
+      - "obsidian.exe"
+      - "chrome.exe"
+      - "msedge.exe"
+      - "firefox.exe"
+      - "brave.exe"
+    ignored_title_keywords:
+      - "spotify"
+      - "youtube"
+      - "netflix"
+      - "vlc"
+      - "task manager"
+      - "settings"
+      - "calculator"
+      - "notifications"
+    
+  # Permissions - What the assistant is ALLOWED to do
+  permissions:
+    # File Operations
+    read_files: true
+    write_files: true
+    delete_files: false
+    list_directories: true
+    search_files: true
+    
+    # System Operations
+    execute_commands: true
+    install_packages: false
+    modify_system_settings: false
+    access_registry: false
+    
+    # Network Operations
+    web_search: true
+    web_crawl: true
+    download_files: false
+    api_calls: true
+    
+    # AI Operations
+    use_vision: true
+    use_voice: true
+    multi_agent: true
+    plugin_execution: true
+    
+    # Privacy
+    send_screen_data: true
+    send_file_contents: true
+    send_voice_data: true
+    log_interactions: true
+    
+    # Automation
+    auto_fix_code: true
+    auto_organize_downloads: true
+    auto_reply_notifications: false
+    schedule_tasks: false
+
+  # Confirmation Requirements
+  confirmations:
+    write_file: true
+    execute_command: true
+    delete_file: true
+    install_package: true
+    modify_system: true
+    web_download: true
+    send_notification: false
+    voice_command: false
+
+  # Agent Configuration
+  agents:
+    enabled: true
+    max_concurrent: 3
+    default_provider: "groq"
+    agents:
+      - id: "vision_analyst"
+        name: "Vision Analyst"
+        role: "Analyze screen content for errors, code issues, UI problems"
+        model: "vision"
+        system_prompt: |
+          You are a vision analyst. Analyze screenshots for:
+          - Code syntax errors
+          - UI/UX issues
+          - Terminal errors
+          - Grammar/spelling mistakes
+          - Security concerns
+          Provide concise, actionable feedback.
+        tools: ["read_file", "search_files", "write_file"]
+        auto_approve: false
+      
+      - id: "code_fixer"
+        name: "Code Fixer"
+        role: "Fix bugs, refactor code, implement features"
+        model: "chat"
+        system_prompt: |
+          You are a senior software engineer. Fix bugs, refactor, and improve code.
+          Always read files first, then propose minimal changes.
+          Write clean, well-documented code following best practices.
+        tools: ["read_file", "write_file", "execute_command", "search_files", "list_directory"]
+        auto_approve: false
+      
+      - id: "researcher"
+        name: "Researcher"
+        role: "Web research, documentation lookup, fact-checking"
+        model: "fast"
+        system_prompt: |
+          You are a research assistant. Search the web, crawl pages, and synthesize information.
+          Always cite sources. Provide accurate, up-to-date information.
+        tools: ["web_search", "web_crawl", "read_file"]
+        auto_approve: true
+      
+      - id: "voice_handler"
+        name: "Voice Handler"
+        role: "Process voice commands, execute actions, respond verbally"
+        model: "fast"
+        system_prompt: |
+          You are a voice assistant. Process spoken commands naturally.
+          Keep responses concise for speech. Confirm destructive actions.
+        tools: ["execute_command", "read_file", "search_files", "web_search", "send_notification"]
+        auto_approve: false
+      
+      - id: "file_organizer"
+        name: "File Organizer"
+        role: "Organize downloads, categorize files, manage media"
+        model: "fast"
+        system_prompt: |
+          You organize files intelligently. Categorize by type, content, and context.
+          Preserve user's existing structure where possible.
+        tools: ["list_directory", "search_files", "execute_command"]
+        auto_approve: true
+
+# ============================================================
+# Voice Configuration
+# ============================================================
+voice:
+  enabled: true
+  wake_words:
+    - "hey assistant"
+    - "okay assistant"
+    - "assistant"
+  engine: "vosk"  # "vosk", "whisper", "azure", "google"
+  language: "en-US"
+  sample_rate: 16000
+  vad_threshold: 0.5
+  silence_timeout: 2.0
+  response_voice:
+    engine: "pyttsx3"  # "pyttsx3", "azure", "elevenlabs", "coqui"
+    rate: 180
+    volume: 0.9
+    voice_id: ""  # Empty = system default
+  commands:
+    - "pause monitoring"
+    - "resume monitoring"
+    - "take screenshot"
+    - "search for"
+    - "open file"
+    - "run command"
+    - "read file"
+    - "write file"
+    - "organize downloads"
+    - "show settings"
+    - "exit"
+
+# ============================================================
+# Web Search & Crawling
+# ============================================================
+web:
+  brave_api_key: ""  # Set via env var BRAVE_API_KEY
+  search:
+    enabled: true
+    default_engine: "brave"  # "brave", "duckduckgo", "google", "bing"
+    max_results: 10
+    safe_search: true
+    region: "US"
+  crawl:
+    enabled: true
+    max_pages: 5
+    max_depth: 2
+    timeout: 30
+    respect_robots_txt: true
+    user_agent: "ActiveAssistant/2.0 (+https://github.com/active-assistant)"
+
+# ============================================================
+# Multimodal Search (Images/Videos by Content)
+# ============================================================
+multimodal_search:
+  enabled: true
+  clip_model: "openai/clip-vit-base-patch32"
+  index_path: "~/.active_assistant/search_index"
+  supported_extensions:
+    images: [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".svg"]
+    videos: [".mp4", ".mkv", ".avi", ".mov", ".webm", ".flv", ".wmv"]
+    audio: [".mp3", ".wav", ".flac", ".m4a", ".ogg", ".opus"]
+    documents: [".pdf", ".docx", ".txt", ".md", ".epub"]
+  batch_size: 32
+  device: "auto"  # "auto", "cpu", "cuda"
+  similarity_threshold: 0.75
+  max_results: 20
+
+# ============================================================
+# Plugin System
+# ============================================================
+plugins:
+  enabled: true
+  auto_load: true
+  plugin_dirs:
+    - "~/.active_assistant/plugins"
+    - "./plugins"
+  builtin_plugins:
+    - "document_handler"
+    - "code_analyzer"
+    - "media_processor"
+    - "system_monitor"
+    - "network_tools"
+    - "archive_manager"
+    - "database_tools"
+  custom_plugins: []
+  sandbox: true
+  timeout: 30
+
+# ============================================================
+# Downloads Organizer
+# ============================================================
+downloads_organizer:
+  enabled: true
+  watch_directory: "~/Downloads"
+  check_interval_seconds: 10
+  file_ready_stability_checks: 3
+  file_ready_stability_interval: 0.5
+  categories:
+    Documents:
+      - ".pdf"
+      - ".docx"
+      - ".doc"
+      - ".txt"
+      - ".xlsx"
+      - ".csv"
+      - ".pptx"
+      - ".epub"
+      - ".md"
+      - ".toml"
+      - ".ini"
+      - ".cfg"
+      - ".config"
+    Code:
+      - ".py"
+      - ".js"
+      - ".ts"
+      - ".html"
+      - ".css"
+      - ".json"
+      - ".yaml"
+      - ".yml"
+      - ".rs"
+      - ".go"
+      - ".c"
+      - ".cpp"
+      - ".sql"
+      - ".sh"
+      - ".bat"
+      - ".ps1"
+      - ".lock"
+      - ".env"
+    Executables:
+      - ".exe"
+      - ".msi"
+      - ".bat"
+      - ".cmd"
+      - ".ps1"
+    Archives:
+      - ".zip"
+      - ".tar"
+      - ".gz"
+      - ".7z"
+      - ".rar"
+      - ".iso"
+    Media_Images:
+      - ".png"
+      - ".jpg"
+      - ".jpeg"
+      - ".gif"
+      - ".svg"
+      - ".webp"
+      - ".bmp"
+      - ".ico"
+    Media_AudioVideo:
+      - ".mp4"
+      - ".mkv"
+      - ".mp3"
+      - ".wav"
+      - ".mov"
+      - ".avi"
+      - ".flac"
+      - ".m4a"
+    Other: []
+
+# ============================================================
+# UI Configuration
+# ============================================================
+ui:
+  theme: "dark"  # "dark", "light", "system", "futuristic"
+  accent_color: "#22c55e"  # Green
+  font_family: "Segoe UI Variable"
+  font_size: 13
+  window:
+    width: 1200
+    height: 800
+    min_width: 800
+    min_height: 600
+    remember_position: true
+    start_minimized: false
+  system_tray:
+    enabled: true
+    show_notifications: true
+    animate_icon: true
+  dashboard:
+    refresh_interval: 5
+    show_metrics: true
+    show_recent_activity: true
+    show_quick_actions: true
+  chat:
+    max_history: 100
+    streaming: true
+    markdown: true
+    code_highlighting: true
+
+# ============================================================
+# Startup & System Integration
+# ============================================================
+startup:
+  enabled: false
+  run_minimized: true
+  delay_seconds: 10
+  run_as_admin: false
+  create_shortcut: true
+  register_protocol: true  # active-assistant://
+
+# ============================================================
+# Logging
+# ============================================================
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "~/.active_assistant/logs/active_assistant.log"
+  max_size_mb: 10
+  backup_count: 5
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} - {message}"
+  console: true
+  json_format: false
+
+# ============================================================
+# Performance
+# ============================================================
+performance:
+  max_worker_threads: 4
+  max_async_tasks: 10
+  cache_ttl_seconds: 300
+  image_cache_size_mb: 100
+  embedding_cache_size_mb: 50
+  enable_gpu: true
+  batch_processing: true
+
+# ============================================================
+# Privacy & Security
+# ============================================================
+privacy:
+  local_only_mode: false
+  encrypt_config: false
+  encrypt_logs: false
+  telemetry: false
+  crash_reports: false
+  data_retention_days: 30
+  auto_delete_temp: true

@@ -1,0 +1,1891 @@
+"""
+Futuristic UI for Active Assistant using CustomTkinter and WebView.
+Modern, responsive interface with real-time updates.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import sys
+import threading
+import tkinter as tk
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
+
+import customtkinter as ctk
+from loguru import logger
+
+from active_assistant.core.config import get_config
+from active_assistant.core.state import state, event_bus, AppState
+from active_assistant.agents.manager import agent_manager
+from active_assistant.plugins.manager import plugin_manager
+from active_assistant.tools.base import tool_registry
+from active_assistant.voice.assistant import voice_assistant
+from active_assistant.web.crawler import web_manager
+
+
+# ============================================================
+# Theme & Styling
+# ============================================================
+
+class FuturisticTheme:
+    """Futuristic color themes for AI assistant."""
+    
+    THEMES = {
+        "matrix": {
+            "name": "Matrix Green",
+            "bg_primary": "#000000",
+            "bg_secondary": "#001100",
+            "bg_tertiary": "#002200",
+            "bg_card": "#001a00",
+            "border": "#003300",
+            "border_focus": "#00ff00",
+            "text_primary": "#00ff00",
+            "text_secondary": "#00cc00",
+            "text_muted": "#008800",
+            "accent": "#00ff00",
+            "accent_hover": "#00cc00",
+            "accent_dim": "#003300",
+            "warning": "#ffff00",
+            "error": "#ff0000",
+            "info": "#00ffff",
+            "success": "#00ff00",
+            "glow": "#00ff00",
+            "accent_alt": "#00ff88",
+            "bg_gradient_start": "#000000",
+            "bg_gradient_end": "#001100",
+        },
+        "cyberpunk": {
+            "name": "Cyberpunk Neon",
+            "bg_primary": "#0a0a0f",
+            "bg_secondary": "#1a0a2e",
+            "bg_tertiary": "#2d1b4e",
+            "bg_card": "#160a2a",
+            "border": "#ff00ff",
+            "border_focus": "#00ffff",
+            "text_primary": "#ffffff",
+            "text_secondary": "#ff00ff",
+            "text_muted": "#8800ff",
+            "accent": "#ff00ff",
+            "accent_hover": "#ff66ff",
+            "accent_dim": "#330033",
+            "warning": "#ffcc00",
+            "error": "#ff0066",
+            "info": "#00ffff",
+            "success": "#00ff88",
+            "glow": "#ff00ff",
+            "accent_alt": "#00ffff",
+            "bg_gradient_start": "#0a0a0f",
+            "bg_gradient_end": "#1a0a2e",
+        },
+        "neon_blue": {
+            "name": "Neon Blue AI",
+            "bg_primary": "#00001a",
+            "bg_secondary": "#000033",
+            "bg_tertiary": "#00004d",
+            "bg_card": "#000026",
+            "border": "#0088ff",
+            "border_focus": "#00ccff",
+            "text_primary": "#ccffff",
+            "text_secondary": "#66ccff",
+            "text_muted": "#3399ff",
+            "accent": "#0088ff",
+            "accent_hover": "#00aaff",
+            "accent_dim": "#001a33",
+            "warning": "#ffaa00",
+            "error": "#ff3333",
+            "info": "#00ddff",
+            "success": "#00ff88",
+            "glow": "#0088ff",
+            "accent_alt": "#00ffff",
+            "bg_gradient_start": "#00001a",
+            "bg_gradient_end": "#00004d",
+        },
+        "sunset_ai": {
+            "name": "Sunset AI",
+            "bg_primary": "#1a001a",
+            "bg_secondary": "#330033",
+            "bg_tertiary": "#4d004d",
+            "bg_card": "#260026",
+            "border": "#ff6600",
+            "border_focus": "#ff9900",
+            "text_primary": "#ffccaa",
+            "text_secondary": "#ff9966",
+            "text_muted": "#cc6633",
+            "accent": "#ff6600",
+            "accent_hover": "#ff8800",
+            "accent_dim": "#331100",
+            "warning": "#ffff00",
+            "error": "#ff3333",
+            "info": "#ff9900",
+            "success": "#ff8844",
+            "glow": "#ff6600",
+            "accent_alt": "#ffcc00",
+            "bg_gradient_start": "#1a001a",
+            "bg_gradient_end": "#330033",
+        },
+        "dark": {
+            "name": "Dark Professional",
+            "bg_primary": "#0d1117",
+            "bg_secondary": "#161b22",
+            "bg_tertiary": "#21262d",
+            "bg_card": "#161b22",
+            "border": "#30363d",
+            "border_focus": "#58a6ff",
+            "text_primary": "#e6edf3",
+            "text_secondary": "#8b949e",
+            "text_muted": "#6e7681",
+            "accent": "#22c55e",
+            "accent_hover": "#16a34a",
+            "accent_dim": "#1a7f37",
+            "warning": "#fbbf24",
+            "error": "#f87171",
+            "info": "#60a5fa",
+            "success": "#4ade80",
+            "glow": "#22c55e",
+            "accent_alt": "#3b82f6",
+            "bg_gradient_start": "#0d1117",
+            "bg_gradient_end": "#161b22",
+        },
+        "light": {
+            "name": "Light Clean",
+            "bg_primary": "#ffffff",
+            "bg_secondary": "#f6f8fa",
+            "bg_tertiary": "#eaeef2",
+            "bg_card": "#ffffff",
+            "border": "#d0d7de",
+            "border_focus": "#0969da",
+            "text_primary": "#24292f",
+            "text_secondary": "#656d76",
+            "text_muted": "#8b949e",
+            "accent": "#1a7f37",
+            "accent_hover": "#166534",
+            "accent_dim": "#1a7f3733",
+            "warning": "#bf8700",
+            "error": "#cf222e",
+            "info": "#0550ae",
+            "success": "#1a7f37",
+            "glow": "#1a7f37",
+            "accent_alt": "#3b82f6",
+            "bg_gradient_start": "#ffffff",
+            "bg_gradient_end": "#f6f8fa",
+        },
+    }
+    
+    @classmethod
+    def get(cls, theme: str = "dark") -> Dict:
+        return cls.THEMES.get(theme, cls.THEMES["dark"])
+    
+    @classmethod
+    def get_theme_names(cls) -> List[str]:
+        return [v["name"] for v in cls.THEMES.values()]
+    
+    @classmethod
+    def get_theme_keys(cls) -> List[str]:
+        return list(cls.THEMES.keys())
+
+
+# ============================================================
+# Custom Widgets
+# ============================================================
+
+class GlowingFrame(ctk.CTkFrame):
+    """Frame with animated glow effect."""
+    
+    def __init__(self, master, **kwargs):
+        self.glow_color = kwargs.pop("glow_color", None)
+        super().__init__(master, **kwargs)
+        self._glow_animation = None
+    
+    def start_glow(self, color: str = None):
+        """Start glow animation."""
+        if color:
+            self.glow_color = color
+        # CustomTkinter doesn't support glow natively, but we can simulate
+        # with border color animation
+        self._animate_border(0)
+    
+    def _animate_border(self, step: int):
+        if not self.glow_color:
+            return
+        # Simplified - would need custom drawing for true glow
+        pass
+    
+    def stop_glow(self):
+        """Stop glow animation."""
+        if self._glow_animation:
+            self.after_cancel(self._glow_animation)
+
+
+class MetricCard(ctk.CTkFrame):
+    """Animated metric display card."""
+    
+    def __init__(self, master, title: str, value: str = "0", icon: str = "", **kwargs):
+        super().__init__(master, **kwargs)
+        self.theme = FuturisticTheme.get("dark")
+        self.configure(fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        
+        # Icon
+        if icon:
+            icon_label = ctk.CTkLabel(self, text=icon, font=("Segoe UI", 24))
+            icon_label.pack(pady=(15, 5))
+        
+        # Value
+        self.value_label = ctk.CTkLabel(
+            self, text=value, font=("Segoe UI Variable", 32, "bold"),
+            text_color=self.theme["accent"]
+        )
+        self.value_label.pack()
+        
+        # Title
+        title_label = ctk.CTkLabel(
+            self, text=title, font=("Segoe UI", 12),
+            text_color=self.theme["text_secondary"]
+        )
+        title_label.pack(pady=(0, 15))
+    
+    def update_value(self, value: str, animate: bool = True):
+        """Update displayed value with optional animation."""
+        self.value_label.configure(text=value)
+
+
+class StatusIndicator(ctk.CTkFrame):
+    """Animated status indicator."""
+    
+    def __init__(self, master, status: str = "idle", **kwargs):
+        super().__init__(master, **kwargs)
+        self.theme = FuturisticTheme.get("dark")
+        self._status = status
+        self._animation_id = None
+        
+        self.dot = ctk.CTkLabel(self, text="●", font=("Segoe UI", 16))
+        self.dot.pack(side="left", padx=5)
+        
+        self.label = ctk.CTkLabel(self, text=status.capitalize(), font=("Segoe UI", 12))
+        self.label.pack(side="left", padx=5)
+        
+        self.set_status(status)
+    
+    def set_status(self, status: str):
+        """Update status with color coding."""
+        self._status = status
+        colors = {
+            "running": self.theme["success"],
+            "paused": self.theme["warning"],
+            "stopped": self.theme["text_muted"],
+            "error": self.theme["error"],
+            "idle": self.theme["text_secondary"],
+            "listening": self.theme["accent"],
+            "processing": self.theme["info"],
+        }
+        color = colors.get(status, self.theme["text_secondary"])
+        self.dot.configure(text_color=color)
+        self.label.configure(text=status.capitalize())
+        
+        # Animate for active states
+        if status in ("running", "listening", "processing"):
+            self._animate_pulse(color)
+        else:
+            self._stop_animation()
+    
+    def _animate_pulse(self, color: str):
+        """Pulse animation for active status."""
+        def pulse():
+            current = self.dot.cget("text_color")
+            # Toggle between color and dimmed
+            new_color = color if current != color else self.theme["text_muted"]
+            self.dot.configure(text_color=new_color)
+            self._animation_id = self.after(800, pulse)
+        pulse()
+    
+    def _stop_animation(self):
+        if self._animation_id:
+            self.after_cancel(self._animation_id)
+            self._animation_id = None
+
+
+class ChatMessage(ctk.CTkFrame):
+    """Chat message bubble."""
+    
+    def __init__(self, master, role: str, content: str, **kwargs):
+        super().__init__(master, **kwargs)
+        self.theme = FuturisticTheme.get("dark")
+        
+        is_user = role == "user"
+        align = "e" if is_user else "w"
+        bg_color = self.theme["accent_dim"] if is_user else self.theme["bg_tertiary"]
+        
+        self.configure(fg_color=bg_color)
+        
+        # Role label
+        role_text = "You" if is_user else "Assistant"
+        role_label = ctk.CTkLabel(
+            self, text=role_text, font=("Segoe UI", 10, "bold"),
+            text_color=self.theme["accent"] if is_user else self.theme["text_secondary"]
+        )
+        role_label.pack(anchor=align, padx=12, pady=(8, 0))
+        
+        # Content
+        content_label = ctk.CTkLabel(
+            self, text=content, font=("Segoe UI", 11),
+            text_color=self.theme["text_primary"], wraplength=500,
+            justify="right" if is_user else "left"
+        )
+        content_label.pack(anchor=align, padx=12, pady=(0, 8))
+
+
+# ============================================================
+# Main Window
+# ============================================================
+
+class MainWindow(ctk.CTk):
+    """Main application window with futuristic UI."""
+    
+    def __init__(self):
+        super().__init__()
+        
+        self.theme_name = get_config().ui.theme
+        self.theme = FuturisticTheme.get(self.theme_name)
+        
+        # Window setup
+        window_cfg = get_config().ui.window
+        self.title("Active Assistant")
+        self.geometry(f"{window_cfg['width']}x{window_cfg['height']}")
+        self.minsize(window_cfg['min_width'], window_cfg['min_height'])
+        
+        if sys.platform == "win32":
+            self.after(100, lambda: self.state("zoomed"))  # Maximize on Windows
+        
+        # Configure grid
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        
+        # Initialize components
+        self._setup_sidebar()
+        self._setup_main_area()
+        self._setup_event_handlers()
+        
+        # State
+        self._chat_history: List[Dict] = []
+        self._update_task = None
+        
+        # Start update loop
+        self._start_updates()
+        
+        logger.info("Main window initialized")
+    
+    def _setup_sidebar(self):
+        """Create sidebar navigation."""
+        self.sidebar = ctk.CTkFrame(self, width=280, fg_color=self.theme["bg_secondary"])
+        self.sidebar.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
+        self.sidebar.grid_propagate(False)
+        self.sidebar.grid_rowconfigure(2, weight=1)
+        
+        # Logo/Title
+        header = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        header.pack(fill="x", padx=20, pady=20)
+        
+        logo = ctk.CTkLabel(
+            header, text="🤖 Active Assistant", font=("Segoe UI Variable", 20, "bold"),
+            text_color=self.theme["accent"]
+        )
+        logo.pack()
+        
+        # Status indicator
+        self.status_indicator = StatusIndicator(header, "starting")
+        self.status_indicator.pack(pady=(10, 0))
+        
+        # Navigation buttons
+        nav_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        nav_frame.pack(fill="x", padx=10, pady=10)
+        
+        self.nav_buttons = {}
+        nav_items = [
+            ("🏠 Dashboard", "dashboard"),
+            ("💬 Chat", "chat"),
+            ("👁️ Vision", "vision"),
+            ("🎤 Voice", "voice"),
+            ("🤖 Agents", "agents"),
+            ("🔌 Plugins", "plugins"),
+            ("🔍 Search", "search"),
+            ("⚙️ Settings", "settings"),
+        ]
+        
+        for label, key in nav_items:
+            btn = ctk.CTkButton(
+                nav_frame, text=label, font=("Segoe UI", 13),
+                fg_color="transparent", text_color=self.theme["text_secondary"],
+                hover_color=self.theme["bg_tertiary"], anchor="w", height=40,
+                command=lambda k=key: self._switch_tab(k)
+            )
+            btn.pack(fill="x", pady=2)
+            self.nav_buttons[key] = btn
+        
+        # Highlight default
+        self._active_tab = "dashboard"
+        self._update_nav_selection()
+        
+        # Quick actions at bottom
+        actions_frame = ctk.CTkFrame(self.sidebar, fg_color="transparent")
+        actions_frame.pack(fill="x", side="bottom", padx=10, pady=20)
+        
+        ctk.CTkButton(
+            actions_frame, text="⏸️ Pause Monitoring", font=("Segoe UI", 12),
+            fg_color=self.theme["warning"], hover_color="#d97706",
+            command=self._toggle_monitoring
+        ).pack(fill="x", pady=2)
+        
+        ctk.CTkButton(
+            actions_frame, text="🗂️ Organize Downloads", font=("Segoe UI", 12),
+            fg_color=self.theme["bg_tertiary"], hover_color=self.theme["border"],
+            command=self._organize_downloads
+        ).pack(fill="x", pady=2)
+        
+        ctk.CTkButton(
+            actions_frame, text="📸 Capture Screen", font=("Segoe UI", 12),
+            fg_color=self.theme["bg_tertiary"], hover_color=self.theme["border"],
+            command=self._capture_screen
+        ).pack(fill="x", pady=2)
+    
+    def _setup_main_area(self):
+        """Create main content area with tabbed interface."""
+        self.main_frame = ctk.CTkFrame(self, fg_color=self.theme["bg_primary"])
+        self.main_frame.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        self.main_frame.grid_rowconfigure(0, weight=1)
+        
+        # Create tab frames
+        self.tabs = {}
+        self._create_dashboard_tab()
+        self._create_chat_tab()
+        self._create_vision_tab()
+        self._create_voice_tab()
+        self._create_agents_tab()
+        self._create_plugins_tab()
+        self._create_search_tab()
+        self._create_settings_tab()
+        
+        # Show default
+        self._show_tab("dashboard")
+    
+    def _create_dashboard_tab(self):
+        """Create dashboard with metrics and activity."""
+        tab = ctk.CTkScrollableFrame(self.main_frame, fg_color="transparent")
+        self.tabs["dashboard"] = tab
+        
+        # Header
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Dashboard", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Metrics grid
+        metrics_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        metrics_frame.pack(fill="x", padx=30, pady=(0, 20))
+        metrics_frame.grid_columnconfigure((0, 1, 2, 3), weight=1)
+        
+        self.metric_cards = {
+            "uptime": MetricCard(metrics_frame, "Uptime", "0s", "⏱️"),
+            "captures": MetricCard(metrics_frame, "Screens Captured", "0", "📸"),
+            "issues": MetricCard(metrics_frame, "Issues Detected", "0", "⚠️"),
+            "tools": MetricCard(metrics_frame, "Tools Executed", "0", "🔧"),
+        }
+        
+        for i, (key, card) in enumerate(self.metric_cards.items()):
+            card.grid(row=0, column=i, padx=10, pady=10, sticky="ew")
+        
+        # Activity feed
+        activity_frame = ctk.CTkFrame(tab, fg_color=self.theme["bg_secondary"])
+        activity_frame.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+        activity_frame.grid_columnconfigure(0, weight=1)
+        activity_frame.grid_rowconfigure(1, weight=1)
+        
+        ctk.CTkLabel(
+            activity_frame, text="Recent Activity", font=("Segoe UI Variable", 18, "bold"),
+            text_color=self.theme["text_primary"]
+        ).grid(row=0, column=0, padx=20, pady=15, sticky="w")
+        
+        self.activity_list = ctk.CTkScrollableFrame(activity_frame, fg_color="transparent")
+        self.activity_list.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
+        self.activity_list.grid_columnconfigure(0, weight=1)
+    
+    def _create_chat_tab(self):
+        """Create chat interface with file upload."""
+        tab = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.tabs["chat"] = tab
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+        
+        # Header
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Chat", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Model selector
+        self.chat_model_var = ctk.StringVar(value="auto")
+        model_combo = ctk.CTkComboBox(
+            header, values=["auto", "vision", "chat", "fast", "reasoning"],
+            variable=self.chat_model_var, width=150, font=("Segoe UI", 12)
+        )
+        model_combo.pack(side="right", padx=10)
+        
+        # Chat history
+        self.chat_scroll = ctk.CTkScrollableFrame(tab, fg_color=self.theme["bg_secondary"])
+        self.chat_scroll.grid(row=1, column=0, sticky="nsew", padx=30, pady=(0, 10))
+        self.chat_scroll.grid_columnconfigure(0, weight=1)
+        
+        # Input area with file upload
+        input_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        input_frame.grid(row=2, column=0, sticky="ew", padx=30, pady=(0, 20))
+        input_frame.grid_columnconfigure(0, weight=1)
+        
+        # File attachments preview
+        self.chat_attachments = []
+        self.attachment_frame = ctk.CTkFrame(input_frame, fg_color="transparent", height=0)
+        self.attachment_frame.grid(row=0, column=0, columnspan=3, sticky="ew", pady=(0, 5))
+        self.attachment_frame.grid_remove()  # Hidden initially
+        
+        # Text input
+        self.chat_input = ctk.CTkTextbox(
+            input_frame, height=100, font=("Segoe UI", 13),
+            fg_color=self.theme["bg_tertiary"], border_color=self.theme["border"]
+        )
+        self.chat_input.grid(row=1, column=0, sticky="ew", padx=(0, 10))
+        self.chat_input.bind("<Return>", lambda e: self._send_chat() if not e.state & 0x1 else None)
+        self.chat_input.bind("<Shift-Return>", lambda e: None)  # Allow newline
+        
+        # Upload button
+        upload_btn = ctk.CTkButton(
+            input_frame, text="📎", font=("Segoe UI", 16),
+            fg_color=self.theme["bg_tertiary"], hover_color=self.theme["border"],
+            width=45, height=45, command=self._upload_file
+        )
+        upload_btn.grid(row=1, column=1, sticky="n", padx=(0, 5))
+        
+        send_btn = ctk.CTkButton(
+            input_frame, text="Send →", font=("Segoe UI", 13, "bold"),
+            fg_color=self.theme["accent"], hover_color=self.theme["accent_hover"],
+            width=100, command=self._send_chat
+        )
+        send_btn.grid(row=1, column=2, sticky="n")
+    
+    def _create_vision_tab(self):
+        """Create vision monitoring tab."""
+        tab = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.tabs["vision"] = tab
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Vision Monitor", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Controls
+        controls = ctk.CTkFrame(header, fg_color="transparent")
+        controls.pack(side="right")
+        
+        self.vision_paused = ctk.BooleanVar(value=False)
+        ctk.CTkSwitch(
+            controls, text="Pause", variable=self.vision_paused,
+            command=self._toggle_vision, font=("Segoe UI", 12)
+        ).pack(side="left", padx=10)
+        
+        ctk.CTkButton(
+            controls, text="🔍 Analyze Now", font=("Segoe UI", 12),
+            fg_color=self.theme["accent"], command=self._analyze_current_screen
+        ).pack(side="left", padx=10)
+        
+        # Preview area
+        self.vision_preview = ctk.CTkFrame(tab, fg_color=self.theme["bg_secondary"])
+        self.vision_preview.grid(row=1, column=0, sticky="nsew", padx=30, pady=(0, 30))
+        self.vision_preview.grid_columnconfigure(0, weight=1)
+        self.vision_preview.grid_rowconfigure(1, weight=1)
+        
+        ctk.CTkLabel(
+            self.vision_preview, text="Screen Capture Preview",
+            font=("Segoe UI", 14), text_color=self.theme["text_secondary"]
+        ).grid(row=0, column=0, pady=15)
+        
+        self.vision_image_label = ctk.CTkLabel(
+            self.vision_preview, text="No capture yet", font=("Segoe UI", 14),
+            text_color=self.theme["text_muted"]
+        )
+        self.vision_image_label.grid(row=1, column=0, sticky="nsew")
+        
+        # Analysis results
+        self.vision_results = ctk.CTkTextbox(
+            tab, height=200, font=("Consolas", 11),
+            fg_color=self.theme["bg_tertiary"], border_color=self.theme["border"]
+        )
+        self.vision_results.grid(row=2, column=0, sticky="ew", padx=30, pady=(0, 30))
+        self.vision_results.insert("1.0", "Vision analysis results will appear here...")
+        self.vision_results.configure(state="disabled")
+    
+    def _create_voice_tab(self):
+        """Create voice assistant tab."""
+        tab = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.tabs["voice"] = tab
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(1, weight=1)
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Voice Assistant", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Voice status
+        self.voice_status = StatusIndicator(header, "idle")
+        self.voice_status.pack(side="right", padx=20)
+        
+        # Waveform visualization placeholder
+        self.voice_waveform = ctk.CTkFrame(tab, fg_color=self.theme["bg_secondary"], height=150)
+        self.voice_waveform.grid(row=1, column=0, sticky="ew", padx=30, pady=(0, 20))
+        self.voice_waveform.grid_propagate(False)
+        
+        ctk.CTkLabel(
+            self.voice_waveform, text="🎤 Waveform Visualization",
+            font=("Segoe UI", 14), text_color=self.theme["text_muted"]
+        ).place(relx=0.5, rely=0.5, anchor="center")
+        
+        # Commands
+        commands_frame = ctk.CTkFrame(tab, fg_color=self.theme["bg_secondary"])
+        commands_frame.grid(row=2, column=0, sticky="ew", padx=30, pady=(0, 20))
+        
+        ctk.CTkLabel(
+            commands_frame, text="Voice Commands", font=("Segoe UI Variable", 16, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(anchor="w", padx=20, pady=15)
+        
+        commands_list = ctk.CTkScrollableFrame(commands_frame, fg_color="transparent", height=200)
+        commands_list.pack(fill="x", padx=20, pady=(0, 15))
+        
+        for cmd in get_config().voice.commands:
+            ctk.CTkLabel(
+                commands_list, text=f"• {cmd}", font=("Segoe UI", 12),
+                text_color=self.theme["text_secondary"], anchor="w"
+            ).pack(fill="x", padx=10, pady=3)
+        
+        # Test button
+        ctk.CTkButton(
+            tab, text="🎤 Test Voice", font=("Segoe UI", 13, "bold"),
+            fg_color=self.theme["accent"], hover_color=self.theme["accent_hover"],
+            height=45, command=self._test_voice
+        ).grid(row=3, column=0, padx=30, pady=(0, 30), sticky="ew")
+    
+    def _create_agents_tab(self):
+        """Create agents management tab."""
+        tab = ctk.CTkScrollableFrame(self.main_frame, fg_color="transparent")
+        self.tabs["agents"] = tab
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Multi-Agent System", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Agent cards container
+        self.agents_container = ctk.CTkFrame(tab, fg_color="transparent")
+        self.agents_container.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+        self.agents_container.grid_columnconfigure((0, 1), weight=1)
+        
+        self.agent_cards = {}
+        self._refresh_agents()
+    
+    def _refresh_agents(self):
+        """Refresh agent cards."""
+        for widget in self.agents_container.winfo_children():
+            widget.destroy()
+        self.agent_cards.clear()
+        
+        agents = agent_manager.list_agents()
+        for i, agent_info in enumerate(agents):
+            card = self._create_agent_card(agent_info)
+            card.grid(row=i // 2, column=i % 2, padx=10, pady=10, sticky="ew")
+            self.agent_cards[agent_info["id"]] = card
+        
+        if not agents:
+            ctk.CTkLabel(
+                self.agents_container, text="No agents configured",
+                font=("Segoe UI", 14), text_color=self.theme["text_muted"]
+            ).pack(pady=50)
+    
+    def _create_agent_card(self, agent_info: Dict) -> ctk.CTkFrame:
+        """Create agent status card."""
+        theme = self.theme
+        card = ctk.CTkFrame(self.agents_container, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        
+        # Header
+        header = ctk.CTkFrame(card, fg_color="transparent")
+        header.pack(fill="x", padx=15, pady=15)
+        
+        ctk.CTkLabel(
+            header, text=agent_info["name"], font=("Segoe UI Variable", 16, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        status_indicator = StatusIndicator(header, agent_info["status"])
+        status_indicator.pack(side="right")
+        
+        # Description
+        ctk.CTkLabel(
+            card, text=agent_info.get("role", ""), font=("Segoe UI", 11),
+            text_color=self.theme["text_secondary"], wraplength=300, justify="left"
+        ).pack(anchor="w", padx=15, pady=(0, 10))
+        
+        # Actions
+        actions = ctk.CTkFrame(card, fg_color="transparent")
+        actions.pack(fill="x", padx=15, pady=(0, 15))
+        
+        ctk.CTkButton(
+            actions, text="🧪 Test Agent", font=("Segoe UI", 11),
+            fg_color=self.theme["bg_tertiary"], hover_color=self.theme["border"],
+            command=lambda a=agent_info["id"]: self._test_agent(a)
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            actions, text="📋 View Logs", font=("Segoe UI", 11),
+            fg_color=self.theme["bg_tertiary"], hover_color=self.theme["border"],
+            command=lambda a=agent_info["id"]: self._view_agent_logs(a)
+        ).pack(side="left", padx=5)
+        
+        return card
+    
+    def _create_plugins_tab(self):
+        """Create plugins management tab."""
+        tab = ctk.CTkScrollableFrame(self.main_frame, fg_color="transparent")
+        self.tabs["plugins"] = tab
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Plugin Manager", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        ctk.CTkButton(
+            header, text="🔄 Refresh", font=("Segoe UI", 12),
+            fg_color=self.theme["accent"], command=self._refresh_plugins
+        ).pack(side="right")
+        
+        # Plugin list
+        self.plugins_container = ctk.CTkFrame(tab, fg_color="transparent")
+        self.plugins_container.pack(fill="both", expand=True, padx=30, pady=(0, 30))
+        
+        self._refresh_plugins()
+    
+    def _refresh_plugins(self):
+        """Refresh plugin list."""
+        for widget in self.plugins_container.winfo_children():
+            widget.destroy()
+        
+        plugins = plugin_manager.list_plugins()
+        for plugin in plugins:
+            card = self._create_plugin_card(plugin)
+            card.pack(fill="x", padx=0, pady=5)
+    
+    def _create_plugin_card(self, plugin_info: PluginInfo) -> ctk.CTkFrame:
+        """Create plugin card."""
+        theme = self.theme
+        card = ctk.CTkFrame(self.plugins_container, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        card.pack(fill="x", pady=5)
+        
+        content = ctk.CTkFrame(card, fg_color="transparent")
+        content.pack(fill="x", padx=15, pady=12)
+        
+        # Info
+        info = ctk.CTkFrame(content, fg_color="transparent")
+        info.pack(side="left", fill="x", expand=True)
+        
+        ctk.CTkLabel(
+            info, text=f"{plugin_info.name} v{plugin_info.version}",
+            font=("Segoe UI Variable", 14, "bold"), text_color=self.theme["text_primary"]
+        ).pack(anchor="w")
+        
+        ctk.CTkLabel(
+            info, text=plugin_info.description, font=("Segoe UI", 11),
+            text_color=self.theme["text_secondary"], wraplength=400
+        ).pack(anchor="w")
+        
+        # Actions
+        actions = ctk.CTkFrame(content, fg_color="transparent")
+        actions.pack(side="right", padx=10)
+        
+        ctk.CTkButton(
+            actions, text="▶️ Run", font=("Segoe UI", 11),
+            fg_color=self.theme["accent"], width=80,
+            command=lambda p=plugin_info.name: self._run_plugin(p)
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            actions, text="ℹ️ Details", font=("Segoe UI", 11),
+            fg_color=self.theme["bg_tertiary"], width=80,
+            command=lambda p=plugin_info.name: self._show_plugin_details(p)
+        ).pack(side="left", padx=5)
+        
+        return card
+    
+    def _create_search_tab(self):
+        """Create multimodal search tab."""
+        tab = ctk.CTkFrame(self.main_frame, fg_color="transparent")
+        self.tabs["search"] = tab
+        tab.grid_columnconfigure(0, weight=1)
+        tab.grid_rowconfigure(2, weight=1)
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.grid(row=0, column=0, sticky="ew", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Multimodal Search", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Search input
+        search_frame = ctk.CTkFrame(tab, fg_color="transparent")
+        search_frame.grid(row=1, column=0, sticky="ew", padx=30, pady=(0, 20))
+        search_frame.grid_columnconfigure(0, weight=1)
+        
+        self.search_input = ctk.CTkEntry(
+            search_frame, placeholder_text="Describe what you're looking for...",
+            font=("Segoe UI", 14), height=45
+        )
+        self.search_input.grid(row=0, column=0, sticky="ew", padx=(0, 10))
+        self.search_input.bind("<Return>", lambda e: self._perform_search())
+        
+        self.search_type = ctk.StringVar(value="all")
+        ctk.CTkComboBox(
+            search_frame, values=["all", "images", "videos", "audio", "documents"],
+            variable=self.search_type, width=130, font=("Segoe UI", 12)
+        ).grid(row=0, column=1, padx=(0, 10))
+        
+        ctk.CTkButton(
+            search_frame, text="🔍 Search", font=("Segoe UI", 13, "bold"),
+            fg_color=self.theme["accent"], width=120, command=self._perform_search
+        ).grid(row=0, column=2)
+        
+        # Results
+        self.search_results = ctk.CTkScrollableFrame(tab, fg_color=self.theme["bg_secondary"])
+        self.search_results.grid(row=2, column=0, sticky="nsew", padx=30, pady=(0, 30))
+        self.search_results.grid_columnconfigure(0, weight=1)
+        
+        ctk.CTkLabel(
+            self.search_results, text="Search results will appear here",
+            font=("Segoe UI", 14), text_color=self.theme["text_muted"]
+        ).pack(pady=50)
+    
+    def _create_settings_tab(self):
+        """Create settings tab."""
+        tab = ctk.CTkScrollableFrame(self.main_frame, fg_color="transparent")
+        self.tabs["settings"] = tab
+        
+        header = ctk.CTkFrame(tab, fg_color="transparent")
+        header.pack(fill="x", padx=30, pady=20)
+        
+        ctk.CTkLabel(
+            header, text="Settings", font=("Segoe UI Variable", 28, "bold"),
+            text_color=self.theme["text_primary"]
+        ).pack(side="left")
+        
+        # Settings sections
+        self._create_api_settings(tab)
+        self._create_permissions_settings(tab)
+        self._create_ui_settings(tab)
+        self._create_startup_settings(tab)
+        self._create_advanced_settings(tab)
+        
+        # Save button
+        ctk.CTkButton(
+            tab, text="💾 Save Settings", font=("Segoe UI Variable", 14, "bold"),
+            fg_color=self.theme["accent"], hover_color=self.theme["accent_hover"],
+            height=45, command=self._save_settings
+        ).pack(fill="x", padx=30, pady=30)
+    
+    def _create_api_settings(self, parent):
+        """API provider settings with custom provider support."""
+        section = self._create_settings_section(parent, "🔑 API Providers")
+        
+        # Load current config
+        cfg = get_config()
+        
+        # Built-in providers
+        builtin_providers = [
+            {"id": "groq", "name": "Groq", "icon": "⚡", "env_var": "GROQ_API_KEY", 
+             "default_url": "https://api.groq.com/openai/v1"},
+            {"id": "openai", "name": "OpenAI", "icon": "🤖", "env_var": "OPENAI_API_KEY",
+             "default_url": "https://api.openai.com/v1"},
+            {"id": "anthropic", "name": "Anthropic", "icon": "🧠", "env_var": "ANTHROPIC_API_KEY",
+             "default_url": "https://api.anthropic.com"},
+            {"id": "ollama", "name": "Ollama (Local)", "icon": "🏠", "env_var": "",
+             "default_url": "http://localhost:11434", "local": True},
+        ]
+        
+        self.api_vars = {}
+        
+        for prov in builtin_providers:
+            self._create_provider_row(section, prov, cfg)
+        
+        # Custom provider section
+        self._create_custom_provider_section(section, cfg)
+    
+    def _create_provider_row(self, section, prov, cfg):
+        """Create a row for a built-in provider."""
+        frame = ctk.CTkFrame(section, fg_color="transparent")
+        frame.pack(fill="x", pady=8)
+        
+        prov_cfg = get_config().api_providers.get(prov["id"])
+        enabled = prov_cfg.enabled if prov_cfg else False
+        default = prov_cfg.default if prov_cfg else False
+        
+        # Header with icon
+        header = ctk.CTkFrame(frame, fg_color="transparent")
+        header.pack(fill="x", pady=4)
+        
+        var = ctk.BooleanVar(value=enabled)
+        self.api_vars[f"{prov['id']}_enabled"] = var
+        
+        ctk.CTkCheckBox(
+            header, text=f"{prov['icon']} {prov['name']}", variable=var,
+            font=("Segoe UI", 12, "bold"), text_color=self.theme["text_primary"]
+        ).pack(side="left", padx=10)
+        
+        if default:
+            ctk.CTkLabel(
+                header, text="⭐ Default", font=("Segoe UI", 10),
+                text_color=self.theme["accent"]
+            ).pack(side="left", padx=10)
+        
+        # API Key entry
+        key_var = ctk.StringVar(value="")
+        self.api_vars[f"{prov['id']}_key"] = key_var
+        
+        key_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        key_frame.pack(fill="x", padx=40, pady=4)
+        
+        # Show/hide password toggle
+        show_var = ctk.BooleanVar(value=False)
+        
+        def toggle_show():
+            key_entry.configure(show="" if show_var.get() else "•")
+        
+        key_entry = ctk.CTkEntry(
+            key_frame, placeholder_text=f"{prov['name']} API Key", textvariable=key_var,
+            font=("Segoe UI", 11), show="•", width=300
+        )
+        key_entry.pack(side="left", padx=(0, 10))
+        
+        ctk.CTkCheckBox(
+            key_frame, text="👁️", variable=show_var, width=30,
+            command=toggle_show, font=("Segoe UI", 12)
+        ).pack(side="left")
+        
+        # Test connection button
+        ctk.CTkButton(
+            key_frame, text="🔗 Test", width=80, font=("Segoe UI", 10),
+            fg_color=self.theme["accent"],
+            command=lambda p=prov["id"]: self._test_provider_connection(p)
+        ).pack(side="right", padx=5)
+        
+        # Save to .env button
+        ctk.CTkButton(
+            key_frame, text="💾 Save to .env", width=100, font=("Segoe UI", 10),
+            fg_color=self.theme["success"],
+            command=lambda p=prov["id"], env=prov["env_var"]: self._save_api_key_to_env(p, env)
+        ).pack(side="right", padx=5)
+    
+    def _create_custom_provider_section(self, section, cfg):
+        """Create section for adding custom providers."""
+        # Separator
+        sep = ctk.CTkFrame(section, height=2, fg_color=self.theme["border"])
+        sep.pack(fill="x", pady=15)
+        
+        # Custom provider header
+        header = ctk.CTkFrame(section, fg_color="transparent")
+        header.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(
+            header, text="➕ Add Custom Provider", font=("Segoe UI Variable", 16, "bold"),
+            text_color=self.theme["accent"]
+        ).pack(side="left", padx=10)
+        
+        # Custom provider form
+        self.custom_provider_vars = {}
+        
+        form_frame = ctk.CTkFrame(section, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        form_frame.pack(fill="x", pady=8, padx=10)
+        
+        # Row 1: Name & ID
+        row1 = ctk.CTkFrame(form_frame, fg_color="transparent")
+        row1.pack(fill="x", padx=15, pady=10)
+        
+        ctk.CTkLabel(row1, text="Display Name:", font=("Segoe UI", 11), text_color=self.theme["text_primary"], width=120).pack(side="left", padx=5)
+        name_var = ctk.StringVar()
+        self.custom_provider_vars["name"] = name_var
+        ctk.CTkEntry(row1, textvariable=name_var, placeholder_text="My AI Provider", width=200).pack(side="left", padx=5)
+        
+        ctk.CTkLabel(row1, text="ID:", font=("Segoe UI", 11), text_color=self.theme["text_primary"], width=40).pack(side="left", padx=5)
+        id_var = ctk.StringVar()
+        self.custom_provider_vars["id"] = id_var
+        ctk.CTkEntry(row1, textvariable=id_var, placeholder_text="my_provider", width=150).pack(side="left", padx=5)
+        
+        # Row 2: Base URL & Env Var
+        row2 = ctk.CTkFrame(form_frame, fg_color="transparent")
+        row2.pack(fill="x", padx=15, pady=10)
+        
+        ctk.CTkLabel(row2, text="Base URL:", font=("Segoe UI", 11), text_color=self.theme["text_primary"], width=120).pack(side="left", padx=5)
+        url_var = ctk.StringVar()
+        self.custom_provider_vars["base_url"] = url_var
+        ctk.CTkEntry(row2, textvariable=url_var, placeholder_text="https://api.example.com/v1", width=300).pack(side="left", padx=5)
+        
+        ctk.CTkLabel(row2, text="Env Var:", font=("Segoe UI", 11), text_color=self.theme["text_primary"], width=80).pack(side="left", padx=5)
+        env_var = ctk.StringVar()
+        self.custom_provider_vars["env_var"] = env_var
+        ctk.CTkEntry(row2, textvariable=env_var, placeholder_text="MY_PROVIDER_API_KEY", width=200).pack(side="left", padx=5)
+        
+        # Row 3: Models
+        row3 = ctk.CTkFrame(form_frame, fg_color="transparent")
+        row3.pack(fill="x", padx=15, pady=10)
+        
+        ctk.CTkLabel(row3, text="Models:", font=("Segoe UI", 11), text_color=self.theme["text_primary"], width=120).pack(side="left", padx=5)
+        
+        model_types = ["vision", "chat", "fast", "reasoning"]
+        self.custom_provider_vars["models"] = {}
+        for mt in model_types:
+            m_var = ctk.StringVar()
+            self.custom_provider_vars["models"][mt] = m_var
+            ctk.CTkEntry(row3, textvariable=m_var, placeholder_text=f"{mt}", width=120).pack(side="left", padx=3)
+        
+        # Row 4: Actions
+        row4 = ctk.CTkFrame(form_frame, fg_color="transparent")
+        row4.pack(fill="x", padx=15, pady=10)
+        
+        ctk.CTkButton(
+            row4, text="➕ Add Custom Provider", font=("Segoe UI", 11, "bold"),
+            fg_color=self.theme["accent"], hover_color=self.theme["accent_hover"],
+            command=self._add_custom_provider
+        ).pack(side="left", padx=5)
+        
+        ctk.CTkButton(
+            row4, text="🗑️ Clear Form", font=("Segoe UI", 11),
+            fg_color=self.theme["warning"],
+            command=self._clear_custom_provider_form
+        ).pack(side="left", padx=5)
+    
+    def _test_provider_connection(self, provider_id: str):
+        """Test connection to a provider."""
+        key_var = self.api_vars.get(f"{provider_id}_key")
+        if not key_var or not key_var.get().strip():
+            self._add_activity("Provider Test", f"Please enter API key for {provider_id}", "warning")
+            return
+        
+        self._add_activity("Provider Test", f"Testing {provider_id} connection...", "info")
+        # Would implement actual test here
+        self._run_async(self._async_test_provider(provider_id, key_var.get().strip()))
+    
+    async def _async_test_provider(self, provider_id: str, api_key: str):
+        """Test provider connection asynchronously."""
+        try:
+            from active_assistant.core.providers import get_provider
+            provider = provider_manager.get_provider(provider_id)
+            if not provider:
+                self.after(0, lambda: self._add_activity("Test Failed", f"Provider {provider_id} not loaded", "error"))
+                return
+            
+            # Simple test message
+            from active_assistant.core.providers import Message, ModelType, chat_completion
+            messages = [Message(role="user", content="Test")]
+            result = await chat_completion(messages, ModelType.FAST, provider=provider_id)
+            self.after(0, lambda: self._add_activity("Test Success", f"{provider_id} connected successfully!", "success"))
+        except Exception as err:
+            self.after(0, lambda e=err: self._add_activity("Test Failed", f"{provider_id}: {str(e)}", "error"))
+    
+    def _save_api_key_to_env(self, provider_id: str, env_var: str):
+        """Save API key to .env file."""
+        key_var = self.api_vars.get(f"{provider_id}_key")
+        if not key_var or not key_var.get().strip():
+            self._add_activity("Save Failed", "Please enter an API key first", "warning")
+            return
+        
+        if not env_var:
+            self._add_activity("Save Failed", "This provider doesn't use an environment variable", "warning")
+            return
+        
+        key = key_var.get().strip()
+        env_path = Path.cwd() / ".env"
+        
+        # Read existing .env
+        lines = []
+        if env_path.exists():
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        
+        # Update or add the key
+        key_found = False
+        new_lines = []
+        for line in lines:
+            if line.startswith(f"{env_var}="):
+                new_lines.append(f"{env_var}={key}")
+                key_found = True
+            else:
+                new_lines.append(line)
+        
+        if not key_found:
+            new_lines.append(f"{env_var}={key}")
+        
+        # Write back
+        env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        
+        # Update current process env
+        import os
+        os.environ[env_var] = key
+        
+        self._add_activity("Saved", f"API key saved to .env for {provider_id}", "success")
+    
+    def _add_custom_provider(self):
+        """Add custom provider from form."""
+        # Validate
+        for key, var in self.custom_provider_vars.items():
+            if key == "models":
+                continue
+            if isinstance(var, ctk.StringVar) and not var.get().strip():
+                self._add_activity("Add Failed", f"Please fill in all fields", "warning")
+                return
+        
+        # Check models
+        models = {}
+        for mt, var in self.custom_provider_vars["models"].items():
+            if not var.get().strip():
+                self._add_activity("Add Failed", f"Please enter {mt} model", "warning")
+                return
+            models[mt] = var.get().strip()
+        
+        # Get values
+        name = self.custom_provider_vars["name"].get().strip()
+        prov_id = self.custom_provider_vars["id"].get().strip()
+        base_url = self.custom_provider_vars["base_url"].get().strip()
+        env_var = self.custom_provider_vars["env_var"].get().strip()
+        
+        # Create provider config
+        new_prov = {
+            "id": prov_id,
+            "name": name,
+            "icon": "🔧",
+            "env_var": env_var,
+            "default_url": base_url,
+            "models": models,
+            "enabled": True,
+            "custom": True
+        }
+        
+        # Add to UI
+        self._create_provider_row_custom(prov_id, prov_id, name, base_url, env_var, models)
+        
+        # Save to config
+        self._save_custom_provider_config(prov_id, name, base_url, env_var, models)
+        
+        self._clear_custom_provider_form()
+        self._add_activity("Provider Added", f"Custom provider '{name}' added", "success")
+    
+    def _create_provider_row_custom(self, prov_id, display_name, name, base_url, env_var, models):
+        """Create a row for a custom provider (similar to built-in but with delete)."""
+        frame = ctk.CTkFrame(self.tabs["settings"], fg_color="transparent")
+        # This would need the section reference - simplified for now
+        pass
+    
+    def _save_custom_provider_config(self, prov_id, name, base_url, env_var, models):
+        """Save custom provider to config."""
+        cfg = get_config()
+        # Add to config
+        cfg.api_providers[prov_id] = type('obj', (object,), {
+            'enabled': True,
+            'default': False,
+            'api_key': '',
+            'base_url': base_url,
+            'models': models,
+            'headers': {},
+            'rate_limit': 30,
+            'timeout': 30,
+        })()
+        cfg.save()
+        
+        # Also save to .env if env_var provided
+        if env_var:
+            env_path = Path.cwd() / ".env"
+            lines = []
+            if env_path.exists():
+                lines = env_path.read_text(encoding="utf-8").splitlines()
+            
+            # Add comment for custom provider
+            new_lines = [f"# Custom provider: {name} ({prov_id})"] + lines
+            env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    
+    def _clear_custom_provider_form(self):
+        """Clear custom provider form."""
+        for key, var in self.custom_provider_vars.items():
+            if key == "models":
+                for v in var.values():
+                    if isinstance(v, ctk.StringVar):
+                        v.set("")
+            elif isinstance(var, ctk.StringVar):
+                var.set("")
+    
+    def _create_permissions_settings(self, parent):
+        """Permissions settings."""
+        section = self._create_settings_section(parent, "🛡️ Permissions")
+        
+        self.perm_vars = {}
+        perms = [
+            ("read_files", "Read Files", True),
+            ("write_files", "Write Files", True),
+            ("delete_files", "Delete Files", False),
+            ("execute_commands", "Execute Commands", True),
+            ("web_search", "Web Search", True),
+            ("web_crawl", "Web Crawl", True),
+            ("use_vision", "Use Vision", True),
+            ("use_voice", "Use Voice", True),
+            ("multi_agent", "Multi-Agent", True),
+            ("plugin_execution", "Plugin Execution", True),
+        ]
+        
+        for key, label, default in perms:
+            frame = ctk.CTkFrame(section, fg_color="transparent")
+            frame.pack(fill="x", pady=5)
+            
+            cfg_val = getattr(get_config().rules.permissions, key, default)
+            var = ctk.BooleanVar(value=cfg_val)
+            self.perm_vars[key] = var
+            
+            ctk.CTkCheckBox(
+                frame, text=label, variable=var, font=("Segoe UI", 12),
+                text_color=self.theme["text_primary"]
+            ).pack(side="left", padx=10)
+            
+            # Confirmation requirement
+            conf_key = f"confirm_{key}"
+            conf_val = getattr(get_config().rules.confirmations, key.replace("use_", "").replace("_", ""), False)
+            conf_var = ctk.BooleanVar(value=conf_val)
+            self.perm_vars[conf_key] = conf_var
+            
+            ctk.CTkCheckBox(
+                frame, text="Require Confirmation", variable=conf_var, font=("Segoe UI", 10),
+                text_color=self.theme["text_muted"]
+            ).pack(side="right", padx=10)
+    
+    def _create_ui_settings(self, parent):
+        """UI settings."""
+        section = self._create_settings_section(parent, "🎨 Interface")
+        
+        # Theme
+        frame = ctk.CTkFrame(section, fg_color="transparent")
+        frame.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(frame, text="Theme:", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left", padx=10)
+        
+        self.theme_var = ctk.StringVar(value=get_config().ui.theme)
+        ctk.CTkComboBox(
+            frame, values=["dark", "light", "system", "futuristic"],
+            variable=self.theme_var, width=150, font=("Segoe UI", 11)
+        ).pack(side="left", padx=10)
+        
+        # Accent color
+        frame2 = ctk.CTkFrame(section, fg_color="transparent")
+        frame2.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(frame2, text="Accent Color:", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left", padx=10)
+        
+        self.accent_var = ctk.StringVar(value=get_config().ui.accent_color)
+        ctk.CTkEntry(frame2, textvariable=self.accent_var, width=100, font=("Segoe UI", 11)).pack(side="left", padx=10)
+        
+        # Font size
+        frame3 = ctk.CTkFrame(section, fg_color="transparent")
+        frame3.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(frame3, text="Font Size:", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left", padx=10)
+        
+        self.font_size_var = ctk.IntVar(value=get_config().ui.font_size)
+        ctk.CTkSlider(frame3, from_=10, to=20, variable=self.font_size_var, width=200).pack(side="left", padx=10)
+        ctk.CTkLabel(frame3, textvariable=self.font_size_var, font=("Segoe UI", 11), text_color=self.theme["text_secondary"]).pack(side="left")
+    
+    def _create_startup_settings(self, parent):
+        """Windows startup settings."""
+        section = self._create_settings_section(parent, "🚀 Windows Startup")
+        
+        cfg = get_config().startup
+        
+        self.startup_vars = {}
+        
+        enabled_var = ctk.BooleanVar(value=cfg.enabled)
+        self.startup_vars["enabled"] = enabled_var
+        ctk.CTkCheckBox(
+            section, text="Start with Windows", variable=enabled_var,
+            font=("Segoe UI", 12), text_color=self.theme["text_primary"]
+        ).pack(anchor="w", padx=10, pady=5)
+        
+        minimized_var = ctk.BooleanVar(value=cfg.run_minimized)
+        self.startup_vars["run_minimized"] = minimized_var
+        ctk.CTkCheckBox(
+            section, text="Start Minimized to Tray", variable=minimized_var,
+            font=("Segoe UI", 12), text_color=self.theme["text_primary"]
+        ).pack(anchor="w", padx=30, pady=5)
+        
+        admin_var = ctk.BooleanVar(value=cfg.run_as_admin)
+        self.startup_vars["run_as_admin"] = admin_var
+        ctk.CTkCheckBox(
+            section, text="Run as Administrator", variable=admin_var,
+            font=("Segoe UI", 12), text_color=self.theme["text_primary"]
+        ).pack(anchor="w", padx=30, pady=5)
+        
+        # Delay
+        frame = ctk.CTkFrame(section, fg_color="transparent")
+        frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(frame, text="Startup Delay (seconds):", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left")
+        
+        delay_var = ctk.IntVar(value=cfg.delay_seconds)
+        self.startup_vars["delay_seconds"] = delay_var
+        ctk.CTkSlider(frame, from_=0, to=60, variable=delay_var, width=200).pack(side="left", padx=10)
+        ctk.CTkLabel(frame, textvariable=delay_var, font=("Segoe UI", 11), text_color=self.theme["text_secondary"]).pack(side="left")
+        
+        ctk.CTkButton(
+            section, text="🔧 Configure Startup", font=("Segoe UI", 12),
+            fg_color=self.theme["accent"], command=self._configure_startup
+        ).pack(anchor="w", padx=10, pady=10)
+    
+    def _create_advanced_settings(self, parent):
+        """Advanced settings."""
+        section = self._create_settings_section(parent, "⚙️ Advanced")
+        
+        # Logging level
+        frame = ctk.CTkFrame(section, fg_color="transparent")
+        frame.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(frame, text="Log Level:", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left", padx=10)
+        
+        self.log_level_var = ctk.StringVar(value=get_config().logging.level)
+        ctk.CTkComboBox(
+            frame, values=["DEBUG", "INFO", "WARNING", "ERROR"],
+            variable=self.log_level_var, width=150, font=("Segoe UI", 11)
+        ).pack(side="left", padx=10)
+        
+        # Performance
+        frame2 = ctk.CTkFrame(section, fg_color="transparent")
+        frame2.pack(fill="x", pady=8)
+        
+        ctk.CTkLabel(frame2, text="Max Workers:", font=("Segoe UI", 12), text_color=self.theme["text_primary"]).pack(side="left", padx=10)
+        
+        self.workers_var = ctk.IntVar(value=get_config().performance.max_worker_threads)
+        ctk.CTkSlider(frame2, from_=1, to=16, variable=self.workers_var, width=200).pack(side="left", padx=10)
+        ctk.CTkLabel(frame2, textvariable=self.workers_var, font=("Segoe UI", 11), text_color=self.theme["text_secondary"]).pack(side="left")
+        
+        # Local only mode
+        local_var = ctk.BooleanVar(value=get_config().privacy.local_only_mode)
+        self.privacy_vars = {"local_only": local_var}
+        ctk.CTkCheckBox(
+            section, text="Local Only Mode (No Cloud APIs)", variable=local_var,
+            font=("Segoe UI", 12), text_color=self.theme["text_primary"]
+        ).pack(anchor="w", padx=10, pady=5)
+    
+    def _create_settings_section(self, parent, title: str) -> ctk.CTkFrame:
+        """Create a settings section."""
+        section = ctk.CTkFrame(parent, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        section.pack(fill="x", padx=30, pady=15)
+        
+        ctk.CTkLabel(
+            section, text=title, font=("Segoe UI Variable", 16, "bold"),
+            text_color=self.theme["accent"]
+        ).pack(anchor="w", padx=15, pady=(15, 10))
+        
+        content = ctk.CTkFrame(section, fg_color="transparent")
+        content.pack(fill="x", padx=15, pady=(0, 15))
+        
+        return content
+    
+    # ============================================================
+    # Event Handlers & Actions
+    # ============================================================
+    
+    def _setup_event_handlers(self):
+        """Set up event subscriptions."""
+        event_bus.subscribe("state_changed", self._on_state_changed)
+        event_bus.subscribe("window_changed", self._on_window_changed)
+        event_bus.subscribe("notification", self._on_notification)
+        event_bus.subscribe("agent_task_started", self._on_agent_task)
+        event_bus.subscribe("agent_task_completed", self._on_agent_task)
+    
+    def _on_state_changed(self, event):
+        """Handle state changes."""
+        new_state = event.payload.get("new", "")
+        self.after(0, lambda: self._update_state_ui(new_state))
+    
+    def _update_state_ui(self, new_state: str):
+        """Update UI based on state."""
+        status_map = {
+            "running": "running",
+            "paused": "paused",
+            "stopping": "stopped",
+            "stopped": "stopped",
+            "error": "error",
+        }
+        status = status_map.get(new_state, "idle")
+        self.status_indicator.set_status(status)
+    
+    def _on_window_changed(self, event):
+        """Handle window changes."""
+        self.after(0, lambda: self._update_vision_preview(event.payload))
+    
+    def _on_notification(self, event):
+        """Handle notifications."""
+        notif = event.payload
+        self.after(0, lambda: self._add_activity(
+            notif.get("title", ""), notif.get("message", ""), notif.get("level", "info")
+        ))
+    
+    def _on_agent_task(self, event):
+        """Handle agent task events."""
+        self.after(0, self._refresh_agents)
+    
+    def _switch_tab(self, tab_name: str):
+        """Switch active tab."""
+        self._active_tab = tab_name
+        self._update_nav_selection()
+        self._show_tab(tab_name)
+    
+    def _update_nav_selection(self):
+        """Update navigation button highlights."""
+        for key, btn in self.nav_buttons.items():
+            if key == self._active_tab:
+                btn.configure(fg_color=self.theme["accent_dim"], text_color=self.theme["accent"])
+            else:
+                btn.configure(fg_color="transparent", text_color=self.theme["text_secondary"])
+    
+    def _show_tab(self, tab_name: str):
+        """Show a tab and hide others."""
+        for name, tab in self.tabs.items():
+            if name == tab_name:
+                tab.grid(row=0, column=0, sticky="nsew")
+            else:
+                tab.grid_remove()
+    
+    def _start_updates(self):
+        """Start periodic UI updates."""
+        self._update_metrics()
+        self._update_task = self.after(2000, self._start_updates)
+    
+    def _update_metrics(self):
+        """Update dashboard metrics."""
+        metrics = state.metrics
+        
+        self.metric_cards["uptime"].update_value(f"{int(metrics.uptime_seconds)}s")
+        self.metric_cards["captures"].update_value(str(metrics.screens_captured))
+        self.metric_cards["issues"].update_value(str(metrics.issues_detected))
+        self.metric_cards["tools"].update_value(str(metrics.tools_executed))
+    
+    def _add_activity(self, title: str, message: str, level: str = "info"):
+        """Add activity to feed."""
+        colors = {
+            "info": self.theme["info"],
+            "warning": self.theme["warning"],
+            "error": self.theme["error"],
+            "success": self.theme["success"],
+        }
+        color = colors.get(level, self.theme["text_primary"])
+        
+        item = ctk.CTkFrame(self.activity_list, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+        item.pack(fill="x", padx=5, pady=3)
+        item.grid_columnconfigure(1, weight=1)
+        
+        # Color indicator
+        indicator = ctk.CTkFrame(item, width=4, fg_color=color)
+        indicator.grid(row=0, column=0, rowspan=2, sticky="ns", padx=0)
+        
+        # Title
+        ctk.CTkLabel(
+            item, text=title, font=("Segoe UI", 11, "bold"),
+            text_color=self.theme["text_primary"], anchor="w"
+        ).grid(row=0, column=1, sticky="ew", padx=10, pady=(8, 0))
+        
+        # Message
+        ctk.CTkLabel(
+            item, text=message[:100], font=("Segoe UI", 10),
+            text_color=self.theme["text_secondary"], anchor="w"
+        ).grid(row=1, column=1, sticky="ew", padx=10, pady=(0, 8))
+        
+        # Time
+        time_str = datetime.now().strftime("%H:%M:%S")
+        ctk.CTkLabel(
+            item, text=time_str, font=("Segoe UI", 9),
+            text_color=self.theme["text_muted"]
+        ).grid(row=0, column=2, rowspan=2, padx=15)
+        
+        # Limit items
+        children = self.activity_list.winfo_children()
+        if len(children) > 50:
+            children[0].destroy()
+    
+    def _update_vision_preview(self, window_data: Dict):
+        """Update vision preview with latest capture."""
+        # This would display the actual image
+        # For now, update text
+        title = window_data.get("title", "Unknown")
+        self.vision_image_label.configure(text=f"Monitoring: {title}")
+    
+    def _upload_file(self):
+        """Open file dialog and add file to attachments."""
+        from tkinter import filedialog
+        filetypes = [
+            ("All files", "*.*"),
+            ("Images", "*.png *.jpg *.jpeg *.gif *.bmp *.webp"),
+            ("Documents", "*.pdf *.docx *.doc *.txt *.md *.xlsx *.csv *.pptx"),
+            ("Code", "*.py *.js *.ts *.html *.css *.json *.yaml *.yml *.cpp *.c *.h *.rs *.go"),
+            ("Archives", "*.zip *.tar *.gz *.7z *.rar"),
+        ]
+        files = filedialog.askopenfilenames(
+            title="Select files to attach",
+            filetypes=filetypes
+        )
+        
+        for file_path in files:
+            self._add_attachment(file_path)
+    
+    def _add_attachment(self, file_path: str):
+        """Add file to attachment list and show in UI."""
+        import os
+        from pathlib import Path
+        
+        file_info = {
+            "path": file_path,
+            "name": Path(file_path).name,
+            "size": os.path.getsize(file_path),
+            "type": self._get_file_type(file_path)
+        }
+        
+        self.chat_attachments.append(file_info)
+        self._update_attachment_ui()
+    
+    def _get_file_type(self, file_path: str) -> str:
+        """Determine file type for display."""
+        ext = Path(file_path).suffix.lower()
+        if ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp']:
+            return "image"
+        elif ext in ['.pdf', '.docx', '.doc', '.txt', '.md', '.xlsx', '.csv', '.pptx']:
+            return "document"
+        elif ext in ['.py', '.js', '.ts', '.html', '.css', '.json', '.yaml', '.yml', '.cpp', '.c', '.h', '.rs', '.go']:
+            return "code"
+        elif ext in ['.zip', '.tar', '.gz', '.7z', '.rar']:
+            return "archive"
+        elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.webm']:
+            return "video"
+        elif ext in ['.mp3', '.wav', '.flac', '.m4a']:
+            return "audio"
+        return "file"
+    
+    def _update_attachment_ui(self):
+        """Update attachment display in UI."""
+        # Clear existing
+        for widget in self.attachment_frame.winfo_children():
+            widget.destroy()
+        
+        if not self.chat_attachments:
+            self.attachment_frame.grid_remove()
+            return
+        
+        self.attachment_frame.grid()
+        
+        for i, att in enumerate(self.chat_attachments):
+            att_frame = ctk.CTkFrame(self.attachment_frame, fg_color=self.theme["bg_tertiary"])
+            att_frame.pack(fill="x", padx=5, pady=2)
+            
+            # Icon based on type
+            icons = {"image": "🖼️", "document": "📄", "code": "💻", "archive": "📦", "video": "🎬", "audio": "🎵", "file": "📎"}
+            icon = icons.get(att["type"], "📎")
+            
+            ctk.CTkLabel(
+                att_frame, text=f"{icon} {att['name']}", font=("Segoe UI", 11),
+                text_color=self.theme["text_primary"]
+            ).pack(side="left", padx=10, pady=5)
+            
+            # Size
+            size_kb = att['size'] / 1024
+            size_str = f"{size_kb:.1f} KB" if size_kb < 1024 else f"{size_kb/1024:.1f} MB"
+            ctk.CTkLabel(
+                att_frame, text=size_str, font=("Segoe UI", 9),
+                text_color=self.theme["text_muted"]
+            ).pack(side="left", padx=10)
+            
+            # Remove button
+            ctk.CTkButton(
+                att_frame, text="✕", width=25, height=25,
+                fg_color=self.theme["error"], hover_color="#dc2626",
+                command=lambda idx=i: self._remove_attachment(idx)
+            ).pack(side="right", padx=5)
+    
+    def _remove_attachment(self, index: int):
+        """Remove attachment from list."""
+        if 0 <= index < len(self.chat_attachments):
+            self.chat_attachments.pop(index)
+            self._update_attachment_ui()
+    
+    def _send_chat(self):
+        """Send chat message with attachments."""
+        text = self.chat_input.get("1.0", "end-1c").strip()
+        if not text and not self.chat_attachments:
+            return
+        
+        self.chat_input.delete("1.0", "end")
+        
+        # Build message with attachments
+        message_parts = [text] if text else []
+        
+        for att in self.chat_attachments:
+            message_parts.append(f"\n[Attached: {att['name']} ({att['type']})]")
+        
+        full_message = "\n".join(message_parts)
+        
+        # Add user message with attachment info
+        self._add_chat_message("user", full_message)
+        
+        # Clear attachments after sending
+        self.chat_attachments.clear()
+        self._update_attachment_ui()
+        
+        # Process asynchronously
+        self._run_async(self._process_chat(full_message))
+    
+    async def _process_chat(self, text: str):
+        """Process chat with agent."""
+        try:
+            # Use researcher agent for general queries
+            result = await agent_manager.delegate_to_best(text)
+            
+            response = result.output if result.success else f"Error: {result.error}"
+            self.after(0, lambda: self._add_chat_message("assistant", response))
+        except Exception as e:
+            self.after(0, lambda: self._add_chat_message("assistant", f"Error: {e}"))
+    
+    def _add_chat_message(self, role: str, content: str):
+        """Add message to chat."""
+        msg = ChatMessage(self.chat_scroll, role, content)
+        msg.pack(fill="x", padx=10, pady=5, anchor="e" if role == "user" else "w")
+        
+        # Auto-scroll
+        self.chat_scroll._parent_canvas.yview_moveto(1.0)
+    
+    def _toggle_monitoring(self):
+        """Toggle monitoring pause/resume."""
+        state.set_paused(not state.is_paused)
+    
+    def _organize_downloads(self):
+        """Trigger downloads organization."""
+        self._run_async(agent_manager.run_agent("file_organizer", "Organize downloads now"))
+    
+    def _capture_screen(self):
+        """Capture and analyze current screen."""
+        self._analyze_current_screen()
+    
+    def _analyze_current_screen(self):
+        """Analyze current screen with vision agent."""
+        self.vision_results.configure(state="normal")
+        self.vision_results.delete("1.0", "end")
+        self.vision_results.insert("1.0", "Capturing screen and analyzing...\n")
+        self.vision_results.configure(state="disabled")
+        
+        self._run_async(self._do_vision_analysis())
+    
+    async def _do_vision_analysis(self):
+        """Perform vision analysis."""
+        try:
+            result = await agent_manager.run_agent("vision_analyst", "Analyze current screen for issues")
+            self.after(0, lambda: self._update_vision_results(result.output if result.success else result.error))
+        except Exception as e:
+            self.after(0, lambda: self._update_vision_results(f"Error: {e}"))
+    
+    def _run_async(self, coro):
+        """Run async coroutine from sync context (thread-safe)."""
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(coro)
+        except RuntimeError:
+            # No running loop, run in background thread
+            import threading
+            def run_in_thread():
+                asyncio.run(coro)
+            threading.Thread(target=run_in_thread, daemon=True).start()
+        except Exception as e:
+            self.after(0, lambda: self._update_vision_results(f"Error: {e}"))
+    
+    def _update_vision_results(self, text: str):
+        """Update vision results display."""
+        self.vision_results.configure(state="normal")
+        self.vision_results.delete("1.0", "end")
+        self.vision_results.insert("1.0", text)
+        self.vision_results.configure(state="disabled")
+    
+    def _toggle_vision(self):
+        """Toggle vision monitoring."""
+        state.set_paused(self.vision_paused.get())
+    
+    def _test_voice(self):
+        """Test voice assistant."""
+        self._run_async(voice_assistant.speak("Voice assistant is working correctly."))
+    
+    def _test_agent(self, agent_id: str):
+        """Test an agent."""
+        self._run_async(agent_manager.run_agent(agent_id, "Run a self-test"))
+    
+    def _view_agent_logs(self, agent_id: str):
+        """View agent logs."""
+        # Would open log viewer
+        pass
+    
+    def _run_plugin(self, plugin_name: str):
+        """Run a plugin."""
+        # Would show plugin action dialog
+        pass
+    
+    def _show_plugin_details(self, plugin_name: str):
+        """Show plugin details."""
+        # Would show details dialog
+        pass
+    
+    def _perform_search(self):
+        """Perform multimodal search."""
+        query = self.search_input.get().strip()
+        if not query:
+            return
+        
+        # Clear results
+        for widget in self.search_results.winfo_children():
+            widget.destroy()
+        
+        ctk.CTkLabel(
+            self.search_results, text="Searching...", font=("Segoe UI", 14),
+            text_color=self.theme["text_muted"]
+        ).pack(pady=50)
+        
+        self._run_async(self._do_search(query))
+    
+    async def _do_search(self, query: str):
+        """Execute search."""
+        try:
+            # Would use multimodal search
+            results = await web_manager.search(query)
+            
+            self.after(0, lambda: self._display_search_results(results))
+        except Exception as e:
+            self.after(0, lambda: self._display_search_error(str(e)))
+    
+    def _display_search_results(self, results: List):
+        """Display search results."""
+        for widget in self.search_results.winfo_children():
+            widget.destroy()
+        
+        for r in results:
+            item = ctk.CTkFrame(self.search_results, fg_color=self.theme["bg_card"], border_width=1, border_color=self.theme["border"])
+            item.pack(fill="x", padx=5, pady=3)
+            
+            ctk.CTkLabel(item, text=r.title, font=("Segoe UI", 12, "bold"), text_color=self.theme["text_primary"], anchor="w").pack(fill="x", padx=10, pady=(8, 0))
+            ctk.CTkLabel(item, text=r.url, font=("Segoe UI", 10), text_color=self.theme["accent"], anchor="w").pack(fill="x", padx=10)
+            ctk.CTkLabel(item, text=r.description[:200], font=("Segoe UI", 10), text_color=self.theme["text_secondary"], anchor="w", wraplength=600).pack(fill="x", padx=10, pady=(0, 8))
+    
+    def _display_search_error(self, error: str):
+        """Display search error."""
+        for widget in self.search_results.winfo_children():
+            widget.destroy()
+        
+        ctk.CTkLabel(
+            self.search_results, text=f"Search error: {error}",
+            font=("Segoe UI", 14), text_color=self.theme["error"]
+        ).pack(pady=50)
+    
+    def _save_settings(self):
+        """Save settings to config."""
+        from active_assistant.core.config import config
+        
+        # Update config from UI
+        for key, var in self.api_vars.items():
+            parts = key.split("_")
+            if len(parts) == 2:
+                prov, attr = parts
+                config.update(f"api_providers.{prov}.{attr}", var.get())
+        
+        for key, var in self.perm_vars.items():
+            if key.startswith("confirm_"):
+                perm_key = key[8:]
+                config.update(f"rules.confirmations.{perm_key}", var.get())
+            else:
+                config.update(f"rules.permissions.{key}", var.get())
+        
+        config.update("ui.theme", self.theme_var.get())
+        config.update("ui.accent_color", self.accent_var.get())
+        config.update("ui.font_size", self.font_size_var.get())
+        
+        for key, var in self.startup_vars.items():
+            config.update(f"startup.{key}", var.get())
+        
+        config.update("logging.level", self.log_level_var.get())
+        config.update("performance.max_worker_threads", self.workers_var.get())
+        config.update("privacy.local_only_mode", self.privacy_vars["local_only"].get())
+        
+        config.save()
+        
+        self._add_activity("Settings", "Configuration saved", "success")
+    
+    def _configure_startup(self):
+        """Configure Windows startup."""
+        from active_assistant.startup.manager import startup_manager
+        self._run_async(startup_manager.configure())
+    
+    def on_closing(self):
+        """Handle window close."""
+        if get_config().ui.window.start_minimized:
+            self.withdraw()  # Minimize to tray instead
+        else:
+            self._shutdown()
+    
+    def _shutdown(self):
+        """Shutdown application."""
+        if self._update_task:
+            self.after_cancel(self._update_task)
+        
+        # Shutdown components
+        self._run_async(self._async_shutdown())
+    
+    async def _async_shutdown(self):
+        """Async shutdown."""
+        await agent_manager.shutdown()
+        await plugin_manager.shutdown()
+        await voice_assistant.stop()
+        state.request_shutdown()
+        self.quit()
+        self.destroy()
+
+
+def main():
+    """Run the main UI."""
+    # Set appearance
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    
+    app = MainWindow()
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
+    app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
