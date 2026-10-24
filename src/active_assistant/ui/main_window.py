@@ -919,8 +919,30 @@ class MainWindow(ctk.CTk):
         ).pack(fill="x", padx=30, pady=30)
     
     def _create_api_settings(self, parent):
-        """API provider settings with custom provider support."""
+        """API provider settings with custom provider support and auto-detection."""
         section = self._create_settings_section(parent, "🔑 API Providers")
+        
+        # Header with refresh button
+        header_frame = ctk.CTkFrame(section, fg_color="transparent")
+        header_frame.pack(fill="x", pady=(0, 10))
+        
+        ctk.CTkLabel(
+            header_frame, text="Manage AI Providers", font=("Segoe UI Variable", 16, "bold"),
+            text_color=self.theme["accent"]
+        ).pack(side="left", padx=10)
+        
+        ctk.CTkButton(
+            header_frame, text="🔄 Refresh All", font=("Segoe UI", 11),
+            fg_color=self.theme["accent"], width=120,
+            command=self._refresh_providers
+        ).pack(side="right", padx=10)
+        
+        # Status label
+        self.provider_status_var = ctk.StringVar(value="Loading...")
+        ctk.CTkLabel(
+            header_frame, textvariable=self.provider_status_var,
+            font=("Segoe UI", 10), text_color=self.theme["text_muted"]
+        ).pack(side="right", padx=10)
         
         # Load current config
         cfg = get_config()
@@ -928,25 +950,33 @@ class MainWindow(ctk.CTk):
         # Built-in providers
         builtin_providers = [
             {"id": "groq", "name": "Groq", "icon": "⚡", "env_var": "GROQ_API_KEY", 
-             "default_url": "https://api.groq.com/openai/v1"},
+             "default_url": "https://api.groq.com/openai/v1",
+             "models_endpoint": "/models"},
             {"id": "openai", "name": "OpenAI", "icon": "🤖", "env_var": "OPENAI_API_KEY",
-             "default_url": "https://api.openai.com/v1"},
+             "default_url": "https://api.openai.com/v1",
+             "models_endpoint": "/models"},
             {"id": "anthropic", "name": "Anthropic", "icon": "🧠", "env_var": "ANTHROPIC_API_KEY",
-             "default_url": "https://api.anthropic.com"},
+             "default_url": "https://api.anthropic.com",
+             "models_endpoint": None},  # Anthropic doesn't have a models endpoint
             {"id": "ollama", "name": "Ollama (Local)", "icon": "🏠", "env_var": "",
-             "default_url": "http://localhost:11434", "local": True},
+             "default_url": "http://localhost:11434", "local": True,
+             "models_endpoint": "/api/tags"},
         ]
         
         self.api_vars = {}
+        self.provider_frames = {}  # Store frame references for refresh
         
         for prov in builtin_providers:
             self._create_provider_row(section, prov, cfg)
         
         # Custom provider section
         self._create_custom_provider_section(section, cfg)
+        
+        # Initial status update
+        self._update_provider_status()
     
     def _create_provider_row(self, section, prov, cfg):
-        """Create a row for a built-in provider."""
+        """Create a row for a built-in provider with model auto-detection."""
         frame = ctk.CTkFrame(section, fg_color="transparent")
         frame.pack(fill="x", pady=8)
         
@@ -954,7 +984,17 @@ class MainWindow(ctk.CTk):
         enabled = prov_cfg.enabled if prov_cfg else False
         default = prov_cfg.default if prov_cfg else False
         
-        # Header with icon
+        # Store frame data for later updates
+        frame_data = {
+            "frame": frame,
+            "status_var": ctk.StringVar(value="⚪ Unknown"),
+            "model_var": ctk.StringVar(value=""),
+            "models_combo": None,
+            "model_var": ctk.StringVar(value=""),
+        }
+        self.provider_frames[prov["id"]] = frame_data
+        
+        # Header with icon and status
         header = ctk.CTkFrame(frame, fg_color="transparent")
         header.pack(fill="x", pady=4)
         
@@ -963,7 +1003,8 @@ class MainWindow(ctk.CTk):
         
         ctk.CTkCheckBox(
             header, text=f"{prov['icon']} {prov['name']}", variable=var,
-            font=("Segoe UI", 12, "bold"), text_color=self.theme["text_primary"]
+            font=("Segoe UI", 12, "bold"), text_color=self.theme["text_primary"],
+            command=lambda p=prov["id"]: self._on_provider_toggled(p)
         ).pack(side="left", padx=10)
         
         if default:
@@ -971,6 +1012,13 @@ class MainWindow(ctk.CTk):
                 header, text="⭐ Default", font=("Segoe UI", 10),
                 text_color=self.theme["accent"]
             ).pack(side="left", padx=10)
+        
+        # Status indicator
+        status_label = ctk.CTkLabel(
+            header, textvariable=frame_data["status_var"],
+            font=("Segoe UI", 10), text_color=self.theme["text_muted"]
+        )
+        status_label.pack(side="left", padx=10)
         
         # API Key entry
         key_var = ctk.StringVar(value="")
@@ -982,12 +1030,14 @@ class MainWindow(ctk.CTk):
         # Show/hide password toggle
         show_var = ctk.BooleanVar(value=False)
         
-        def toggle_show():
-            key_entry.configure(show="" if show_var.get() else "•")
+        def toggle_show(p=prov['id']):
+            entry = self._get_key_entry(p)
+            if entry:
+                entry.configure(show="" if show_var.get() else "•")
         
         key_entry = ctk.CTkEntry(
             key_frame, placeholder_text=f"{prov['name']} API Key", textvariable=key_var,
-            font=("Segoe UI", 11), show="•", width=300
+            font=("Segoe UI", 11), show="•", width=250
         )
         key_entry.pack(side="left", padx=(0, 10))
         
@@ -996,19 +1046,92 @@ class MainWindow(ctk.CTk):
             command=toggle_show, font=("Segoe UI", 12)
         ).pack(side="left")
         
+        # Model selection dropdown (for providers with model detection)
+        if prov.get("models_endpoint") or prov.get("local"):
+            self._add_model_dropdown(key_frame, prov)
+        
         # Test connection button
         ctk.CTkButton(
-            key_frame, text="🔗 Test", width=80, font=("Segoe UI", 10),
+            key_frame, text="🔗 Test", width=70, font=("Segoe UI", 10),
             fg_color=self.theme["accent"],
             command=lambda p=prov["id"]: self._test_provider_connection(p)
-        ).pack(side="right", padx=5)
+        ).pack(side="right", padx=3)
+        
+        # Auto-detect models button (for Ollama and cloud providers)
+        if prov.get("models_endpoint") or prov.get("local"):
+            ctk.CTkButton(
+                key_frame, text="🔍 Detect Models", width=100, font=("Segoe UI", 10),
+                fg_color=self.theme["info"],
+                command=lambda p=prov["id"]: self._detect_provider_models(p)
+            ).pack(side="right", padx=3)
         
         # Save to .env button
+        if prov.get("env_var"):
+            ctk.CTkButton(
+                key_frame, text="💾 Save", width=80, font=("Segoe UI", 10),
+                fg_color=self.theme["success"],
+                command=lambda p=prov["id"], env=prov["env_var"]: self._save_api_key_to_env(p, env)
+            ).pack(side="right", padx=3)
+        
+        # Set as default button
         ctk.CTkButton(
-            key_frame, text="💾 Save to .env", width=100, font=("Segoe UI", 10),
-            fg_color=self.theme["success"],
-            command=lambda p=prov["id"], env=prov["env_var"]: self._save_api_key_to_env(p, env)
-        ).pack(side="right", padx=5)
+            key_frame, text="⭐ Default", width=80, font=("Segoe UI", 10),
+            fg_color=self.theme["warning"],
+            command=lambda p=prov["id"]: self._set_default_provider(p)
+        ).pack(side="right", padx=3)
+        
+        return frame
+    
+    def _get_key_entry(self, provider_id: str):
+        """Find the key entry widget for a provider."""
+        frame_data = self.provider_frames.get(provider_id)
+        if frame_data and "frame" in frame_data:
+            frame = frame_data["frame"]
+            for child in frame.winfo_children():
+                if isinstance(child, ctk.CTkFrame):
+                    for widget in child.winfo_children():
+                        if isinstance(widget, ctk.CTkEntry) and "API Key" in str(widget.cget("placeholder_text")):
+                            return widget
+        return None
+    
+    def _add_model_dropdown(self, parent_frame, prov):
+        """Add model selection dropdown with auto-detection."""
+        provider_id = prov["id"]
+        frame_data = self.provider_frames.get(provider_id, {})
+        
+        model_frame = ctk.CTkFrame(parent_frame, fg_color="transparent")
+        model_frame.pack(fill="x", padx=40, pady=(4, 0))
+        
+        ctk.CTkLabel(
+            model_frame, text="Model:", font=("Segoe UI", 10),
+            text_color=self.theme["text_secondary"], width=60
+        ).pack(side="left", padx=(0, 10))
+        
+        model_var = ctk.StringVar(value="")
+        self.api_vars[f"{provider_id}_model"] = model_var
+        frame_data["model_var"] = model_var
+        
+        combo = ctk.CTkComboBox(
+            model_frame, variable=model_var, width=300, font=("Segoe UI", 10),
+            values=["Loading..."], state="readonly"
+        )
+        combo.pack(side="left", padx=(0, 10))
+        frame_data["models_combo"] = combo
+        frame_data["model_var"] = model_var
+        
+        # Set default from config
+        prov_cfg = get_config().api_providers.get(prov["id"])
+        if prov_cfg and prov_cfg.models:
+            default_model = prov_cfg.models.get("chat") or prov_cfg.models.get("vision") or ""
+            if default_model:
+                model_var.set(default_model)
+        
+        # Refresh models button
+        ctk.CTkButton(
+            model_frame, text="↻", width=30, font=("Segoe UI", 10),
+            fg_color=self.theme["accent"],
+            command=lambda p=prov["id"]: self._detect_provider_models(p)
+        ).pack(side="left", padx=3)
     
     def _create_custom_provider_section(self, section, cfg):
         """Create section for adding custom providers."""
@@ -1244,7 +1367,137 @@ class MainWindow(ctk.CTk):
                         v.set("")
             elif isinstance(var, ctk.StringVar):
                 var.set("")
+
+
+
+    def _refresh_providers(self):
+        """Refresh all provider statuses and models."""
+        self._update_provider_status()
+        for prov_id in self.provider_frames:
+            self._detect_provider_models(prov_id)
     
+    def _update_provider_status(self):
+        """Update provider status labels."""
+        for prov_id, frame_data in self.provider_frames.items():
+            status_var = frame_data.get("status_var")
+            if status_var:
+                key_var = self.api_vars.get(f"{prov_id}_key")
+                if key_var and key_var.get().strip():
+                    status_var.set("🟢 Connected")
+                else:
+                    status_var.set("🔴 Not configured")
+    
+    def _on_provider_toggled(self, provider_id: str):
+        """Handle provider enable/disable toggle."""
+        enabled = self.api_vars.get(f"{provider_id}_enabled", ctk.BooleanVar()).get()
+        cfg = get_config()
+        if provider_id in cfg.api_providers:
+            prov_cfg = cfg.api_providers[provider_id]
+            prov_cfg.enabled = enabled
+            cfg.save()
+            self._add_activity("Provider", f"{provider_id} {'enabled' if enabled else 'disabled'}", "info")
+    
+    def _detect_provider_models(self, provider_id: str):
+        """Auto-detect models for a provider (Ollama or cloud)."""
+        frame_data = self.provider_frames.get(provider_id)
+        if not frame_data:
+            return
+        
+        status_var = frame_data.get("status_var")
+        if status_var:
+            status_var.set("🟡 Detecting...")
+        
+        prov_cfg = get_config().api_providers.get(provider_id)
+        if not prov_cfg:
+            if status_var:
+                status_var.set("🔴 Not configured")
+            return
+        
+        # Get provider info
+        base_url = prov_cfg.base_url or ""
+        api_key = ""
+        key_var = self.api_vars.get(f"{provider_id}_key")
+        if key_var:
+            api_key = key_var.get().strip()
+        
+        # Run detection in background
+        self._run_async(self._async_detect_models(provider_id, base_url, api_key))
+    
+    async def _async_detect_models(self, provider_id: str, base_url: str, api_key: str):
+        """Detect models asynchronously for a provider."""
+        try:
+            models = []
+            
+            if provider_id == "ollama":
+                # Ollama local model detection
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(f"{base_url}/api/tags", timeout=5) as resp:
+                        if resp.status == 200:
+                            data = await resp.json()
+                            models = [m["name"] for m in data.get("models", [])]
+            elif provider_id in ["groq", "openai"]:
+                # Cloud provider model detection
+                import aiohttp
+                headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+                async with aiohttp.ClientSession() as session:
+                    models_endpoint = f"{base_url}/models" if provider_id != "anthropic" else None
+                    if models_endpoint:
+                        async with session.get(models_endpoint, headers=headers, timeout=10) as resp:
+                            if resp.status == 200:
+                                data = await resp.json()
+                                if provider_id == "groq":
+                                    models = [m["id"] for m in data.get("data", [])]
+                                elif provider_id == "openai":
+                                    models = [m["id"] for m in data.get("data", [])]
+            elif provider_id == "anthropic":
+                # Anthropic has known models
+                models = [
+                    "claude-3-5-sonnet-20241022",
+                    "claude-3-5-haiku-20241022",
+                    "claude-3-opus-20240229",
+                    "claude-3-sonnet-20240229",
+                    "claude-3-haiku-20240307"
+                ]
+            
+            # Update UI on main thread
+            if models:
+                frame_data = self.provider_frames.get(provider_id)
+                if frame_data and "models_combo" in frame_data:
+                    combo = frame_data["models_combo"]
+                    model_var = frame_data.get("model_var")
+                    if combo:
+                        combo.configure(values=sorted(models))
+                        if models and not model_var.get():
+                            model_var.set(models[0])
+                
+                # Update config with detected models
+                cfg = get_config()
+                if provider_id in cfg.api_providers:
+                    prov_cfg = cfg.api_providers[provider_id]
+                    if not prov_cfg.models:
+                        prov_cfg.models = {}
+                    # Map models to categories
+                    model_map = {
+                        "vision": next((m for m in models if "vision" in m.lower()), models[0]),
+                        "chat": next((m for m in models if "chat" in m.lower() or "sonnet" in m.lower()), models[0]),
+                        "fast": next((m for m in models if "fast" in m.lower() or "mini" in m.lower() or "haiku" in m.lower()), models[0]),
+                        "reasoning": next((m for m in models if "reason" in m.lower() or "opus" in m.lower()), models[0]),
+                    }
+                    prov_cfg.models.update({k: v for k, v in model_map.items() if v})
+                    cfg.save()
+                
+                self.after(0, lambda: self.provider_frames[provider_id]["status_var"].set(f"🟢 {len(models)} models"))
+                self._add_activity("Models Detected", f"{provider_id}: {len(models)} models found", "success")
+            else:
+                self.after(0, lambda: self.provider_frames[provider_id]["status_var"].set("🟡 No models"))
+                
+        except Exception as e:
+            self.after(0, lambda: self.provider_frames[provider_id]["status_var"].set("🔴 Error"))
+            self._add_activity("Detection Failed", f"{provider_id}: {str(e)}", "error")
+
+
+
     def _create_permissions_settings(self, parent):
         """Permissions settings."""
         section = self._create_settings_section(parent, "🛡️ Permissions")
