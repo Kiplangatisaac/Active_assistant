@@ -19,24 +19,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Find project dir by walking up from this file looking for active_assistant.spec
 PROJECT_DIR = Path(__file__).resolve().parent
-# Support GitHub Actions workspace (may be nested: /home/runner/work/repo/repo)
-if os.environ.get("GITHUB_WORKSPACE"):
-    GW = Path(os.environ["GITHUB_WORKSPACE"])
-    if (GW / "active_assistant.spec").exists():
-        PROJECT_DIR = GW
-    elif (GW / "Active_assistant" / "active_assistant.spec").exists():
-        PROJECT_DIR = GW / "Active_assistant"
-    elif (GW / "active_assistant" / "active_assistant.spec").exists():
-        PROJECT_DIR = GW / "active_assistant"
-
-# Fallback: use current working directory if spec not found yet
-if not (PROJECT_DIR / "active_assistant.spec").exists():
-    cwd = Path.cwd()
-    if (cwd / "active_assistant.spec").exists():
-        PROJECT_DIR = cwd
-    elif (cwd / "Active_assistant" / "active_assistant.spec").exists():
-        PROJECT_DIR = cwd / "Active_assistant"
+for _ in range(5):  # walk up max 5 levels
+    if (PROJECT_DIR / "active_assistant.spec").exists():
+        break
+    PROJECT_DIR = PROJECT_DIR.parent
 
 DIST_DIR = PROJECT_DIR / "dist"
 BUILD_DIR = PROJECT_DIR / "build"

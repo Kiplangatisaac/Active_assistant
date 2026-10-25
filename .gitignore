@@ -28,8 +28,8 @@ MANIFEST
 
 # PyInstaller
 *.manifest
-!active_assistant.spec
 *.spec
+!active_assistant.spec
 
 # IDE
 .vscode/
