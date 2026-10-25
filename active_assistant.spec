@@ -51,7 +51,6 @@ a = Analysis(
         "plyer",
         "pystray",
         # Standard library modules
-        "ctypes.wintypes" if IS_WINDOWS else None,
         "shlex",
         "queue",
         "threading",
