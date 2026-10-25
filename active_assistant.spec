@@ -100,7 +100,6 @@ a = Analysis(
         "pyaudio",
         # Web
         "aiohttp",
-        "brave_search",
         "requests",
         "bs4",
         "lxml",
@@ -290,7 +289,6 @@ exe = EXE(
 
 # --- App Bundle for macOS ---
 if IS_MACOS:
-    from PyInstaller.utils.cliutils.app_name import get_app_name
     from PyInstaller.building.osx import BUNDLE
 
     app = BUNDLE(

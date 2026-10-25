@@ -142,7 +142,8 @@ def build_linux() -> None:
     tarball = DIST_DIR / "active-assistant-linux.tar.gz"
     if tarball.exists():
         tarball.unlink()
-    shutil.make_archive(str(tarball.with_suffix("")), "gztar", root_dir=DIST_DIR, base_dir="active-assistant-linux")
+    # make_archive adds .tar.gz extension, so base_name should not include it
+    shutil.make_archive(str(DIST_DIR / "active-assistant-linux"), "gztar", root_dir=DIST_DIR, base_dir="active-assistant-linux")
     # Clean up the temp dir
     shutil.rmtree(package_dir)
 
