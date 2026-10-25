@@ -213,6 +213,13 @@ jobs:
           path: dist/ActiveAssistant.app
           retention-days: 7
 
+      - name: Zip macOS app for release
+        if: always()
+        run: |
+          cd dist
+          zip -r ActiveAssistant.app.zip ActiveAssistant.app
+          ls -la ActiveAssistant.app.zip
+
   # =========================================================================
   # Release (GitHub Release)
   # =========================================================================
@@ -221,6 +228,8 @@ jobs:
     needs: [parse-version, build-windows, build-linux, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -251,7 +260,7 @@ jobs:
         if: always()
         run: |
           cd release-artifacts
-          find . -type f \( -name "*.exe" -o -name "*.tar.gz" \) -print0 | while IFS= read -r -d '' f; do
+          find . -type f \( -name "*.exe" -o -name "*.tar.gz" -o -name "*.zip" \) -print0 | while IFS= read -r -d '' f; do
             sha256sum "$f" >> checksums.txt 2>/dev/null || true
           done
           cat checksums.txt 2>/dev/null || echo "No artifacts to checksum"
@@ -268,7 +277,7 @@ jobs:
           files: |
             release-artifacts/windows/ActiveAssistant.exe
             release-artifacts/linux/active-assistant-linux.tar.gz
-            release-artifacts/macos/ActiveAssistant.app/**
+            release-artifacts/macos/ActiveAssistant.app.zip
             release-artifacts/checksums.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
