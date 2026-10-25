@@ -48,7 +48,6 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           echo "Parsing tag: $TAG"
 
-          # Strict SemVer 2.0.0 regex with capture groups:
           SEMVER_REGEX='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9a-zA-Z.-]+))?(\+([0-9a-zA-Z.-]+))?$'
 
           if [[ ! "$TAG" =~ $SEMVER_REGEX ]]; then
@@ -76,7 +75,8 @@ jobs:
   # =========================================================================
   build-windows:
     name: Build Windows (.exe)
-    if: github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event_name == 'push'
+    if: |
+      (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'windows' || github.event_name == 'push')
     runs-on: windows-latest
 
     steps:
@@ -91,9 +91,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
-      - name: Install system dependencies
+      - name: Install PyInstaller
         run: |
-          choco install pyinstaller --yes || pip install pyinstaller
+          pip install pyinstaller>=6.0.0
 
       - name: Install Python dependencies
         run: |
@@ -105,6 +105,7 @@ jobs:
 
       - name: Upload Windows executable
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: active-assistant-windows
           path: dist/ActiveAssistant.exe
@@ -115,7 +116,8 @@ jobs:
   # =========================================================================
   build-linux:
     name: Build Linux (tar.gz)
-    if: github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' || github.event_name == 'push'
+    if: |
+      (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'linux' || github.event_name == 'push')
     runs-on: ubuntu-latest
 
     steps:
@@ -146,6 +148,10 @@ jobs:
             libxcb-xfixes0-dev \
             wget curl git xdg-utils
 
+      - name: Install PyInstaller
+        run: |
+          pip install pyinstaller>=6.0.0
+
       - name: Install Python dependencies
         run: |
           pip install -e "."
@@ -156,6 +162,7 @@ jobs:
 
       - name: Upload Linux package
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: active-assistant-linux
           path: dist/active-assistant-linux.tar.gz
@@ -166,7 +173,8 @@ jobs:
   # =========================================================================
   build-macos:
     name: Build macOS (.app)
-    if: github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event_name == 'push'
+    if: |
+      (github.event.inputs.platform == 'all' || github.event.inputs.platform == 'macos' || github.event_name == 'push')
     runs-on: macos-latest
 
     steps:
@@ -183,8 +191,11 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          brew install python@3.11 openssl pkg-config libffi gtk+3 libnotify wget curl git || true
-          eval "$(/opt/homebrew/bin/brew shellenv)" || true
+          brew install openssl pkg-config libffi gtk+3 libnotify wget curl git || true
+
+      - name: Install PyInstaller
+        run: |
+          pip install pyinstaller>=6.0.0
 
       - name: Install Python dependencies
         run: |
@@ -196,84 +207,18 @@ jobs:
 
       - name: Upload macOS app
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: active-assistant-macos
           path: dist/ActiveAssistant.app
           retention-days: 7
 
   # =========================================================================
-  # Update Floating Tags (major/minor)
-  # =========================================================================
-  update-floating-tags:
-    name: Update Floating Tags
-    needs: [parse-version, build-windows, build-linux, build-macos]
-    if: startsWith(github.ref, 'refs/tags/v') && needs.parse-version.outputs.is_prerelease == 'false'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Conditionally Update Floating Major and Minor Tags
-        run: |
-          # 1. Ensure all remote tags are present locally
-          git fetch --tags --force
-
-          CURRENT_TAG="${GITHUB_REF_NAME}"
-          MAJOR_NUM="${{ needs.parse-version.outputs.major }}"
-          MINOR_NUM="${{ needs.parse-version.outputs.minor }}"
-
-          FLOATING_MAJOR="v${MAJOR_NUM}"
-          FLOATING_MINOR="v${MAJOR_NUM}.${MINOR_NUM}"
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Helper function: returns 0 if $1 is strictly >= $2 using SemVer version sort
-          is_equal_or_newer() {
-            local candidate="$1"
-            local existing="$2"
-            if [ -z "$existing" ]; then
-              return 0
-            fi
-            local highest
-            highest=$(printf "%s\n%s\n" "$candidate" "$existing" | sort -V | tail -n1)
-            [ "$candidate" = "$highest" ]
-          }
-
-          # --- Evaluate Floating Minor Tag (e.g., v1.2) ---
-          HIGHEST_MINOR=$(git tag -l "v${MAJOR_NUM}.${MINOR_NUM}.[0-9]*" | sort -V | tail -n1)
-
-          if is_equal_or_newer "$CURRENT_TAG" "$HIGHEST_MINOR"; then
-            echo "[UPDATE] ${CURRENT_TAG} is >= highest minor release (${HIGHEST_MINOR:-none}). Moving ${FLOATING_MINOR}."
-            git tag -fa "$FLOATING_MINOR" "$GITHUB_SHA" -m "Point ${FLOATING_MINOR} to ${CURRENT_TAG}"
-            git push origin "$FLOATING_MINOR" --force
-          else
-            echo "[SKIP] ${CURRENT_TAG} is older than highest minor release (${HIGHEST_MINOR}). ${FLOATING_MINOR} left untouched."
-          fi
-
-          # --- Evaluate Floating Major Tag (e.g., v1) ---
-          HIGHEST_MAJOR=$(git tag -l "v${MAJOR_NUM}.[0-9]*.[0-9]*" | sort -V | tail -n1)
-
-          if is_equal_or_newer "$CURRENT_TAG" "$HIGHEST_MAJOR"; then
-            echo "[UPDATE] ${CURRENT_TAG} is >= highest major release (${HIGHEST_MAJOR:-none}). Moving ${FLOATING_MAJOR}."
-            git tag -fa "$FLOATING_MAJOR" "$GITHUB_SHA" -m "Point ${FLOATING_MAJOR} to ${CURRENT_TAG}"
-            git push origin "$FLOATING_MAJOR" --force
-          else
-            echo "[SKIP] ${CURRENT_TAG} is older than highest major release (${HIGHEST_MAJOR}). ${FLOATING_MAJOR} left untouched."
-          fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # =========================================================================
   # Release (GitHub Release)
   # =========================================================================
   release:
     name: Create GitHub Release
-    needs: [build-windows, build-linux, build-macos, parse-version]
+    needs: [parse-version, build-windows, build-linux, build-macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
@@ -283,32 +228,37 @@ jobs:
 
       - name: Download Windows artifact
         uses: actions/download-artifact@v4
+        if: always()
         with:
           name: active-assistant-windows
           path: release-artifacts/windows
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
+        if: always()
         with:
           name: active-assistant-linux
           path: release-artifacts/linux
 
       - name: Download macOS artifact
         uses: actions/download-artifact@v4
+        if: always()
         with:
           name: active-assistant-macos
           path: release-artifacts/macos
 
       - name: Generate checksums
+        if: always()
         run: |
           cd release-artifacts
-          find . -type f -name "*.exe" -o -name "*.tar.gz" -o -name "*.app" | while read f; do
-            sha256sum "$f" >> checksums.txt
+          find . -type f \( -name "*.exe" -o -name "*.tar.gz" \) -print0 | while IFS= read -r -d '' f; do
+            sha256sum "$f" >> checksums.txt 2>/dev/null || true
           done
-          cat checksums.txt
+          cat checksums.txt 2>/dev/null || echo "No artifacts to checksum"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
+        if: always()
         with:
           name: "Active Assistant v${{ needs.parse-version.outputs.version }}"
           tag_name: ${{ github.ref_name }}

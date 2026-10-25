@@ -70,6 +70,7 @@ def build_windows() -> None:
         print(f"\n[OK] Windows executable: {exe_path} ({size_mb:.1f} MB)")
     else:
         print("\n[ERROR] Windows executable not found!")
+        sys.exit(1)
 
 
 def build_linux() -> None:
@@ -87,6 +88,7 @@ def build_linux() -> None:
         print(f"\n[OK] Linux executable: {exe_path} ({size_mb:.1f} MB)")
     else:
         print("\n[ERROR] Linux executable not found!")
+        sys.exit(1)
 
     # Create .tar.gz package
     package_dir = DIST_DIR / "active-assistant-linux"
@@ -136,6 +138,9 @@ def build_linux() -> None:
     if tarball.exists():
         size_mb = tarball.stat().st_size / (1024 * 1024)
         print(f"\n[OK] Linux package: {tarball} ({size_mb:.1f} MB)")
+    else:
+        print("\n[ERROR] Linux tarball not found!")
+        sys.exit(1)
 
 
 def build_macos() -> None:
@@ -165,6 +170,7 @@ def build_macos() -> None:
             print(f"\n[OK] macOS executable: {exe_path} ({size_mb:.1f} MB)")
         else:
             print("\n[ERROR] macOS build artifact not found!")
+            sys.exit(1)
 
 
 def build_all() -> None:
