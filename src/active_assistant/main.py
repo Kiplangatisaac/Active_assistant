@@ -24,6 +24,8 @@ from active_assistant.agents.manager import agent_manager
 from active_assistant.plugins.manager import plugin_manager
 from active_assistant.voice.assistant import initialize_voice, start_voice, stop_voice
 from active_assistant.web.crawler import initialize_web
+from active_assistant.web.stream import create_streaming_routes
+from active_assistant.mcp.server import MCPServer
 from active_assistant.startup.manager import startup_manager
 from active_assistant.tools.base import tool_registry
 
@@ -40,6 +42,8 @@ class ActiveAssistantApp:
         self._ui_thread: threading.Thread | None = None
         self._tray = None
         self._event_loop: asyncio.AbstractEventLoop | None = None
+        self._mcp_server: MCPServer | None = None
+        self._streaming_server = None
     
     async def initialize(self, config_path: str | None = None):
         """Initialize all components."""
@@ -74,6 +78,11 @@ class ActiveAssistantApp:
         
         # Initialize screen monitor
         await initialize_monitor()
+        
+        # Initialize MCP server
+        self._mcp_server = MCPServer()
+        if await self._mcp_server.initialize():
+            logger.info("MCP server initialized")
         
         logger.info("All components initialized")
     
@@ -153,12 +162,31 @@ class ActiveAssistantApp:
 # Entry Points
 # ============================================================
 
-def run_tray_mode(config_path: str | None = None):
-    """Run with system tray (default)."""
-    app = ActiveAssistantApp()
-    
-    # Run async initialization
-    asyncio.run(app.initialize(config_path))
+    def start_streaming_server(self):
+        """Start the streaming server in a background thread."""
+        import threading
+        import uvicorn
+        from starlette.applications import Starlette
+        from active_assistant.web.stream import create_streaming_routes
+        
+        streaming_app = Starlette(routes=create_streaming_routes())
+        
+        def run_server():
+            uvicorn.run(streaming_app, host="127.0.0.1", port=8765, log_level="warning")
+        
+        self._streaming_thread = threading.Thread(target=run_server, daemon=True)
+        self._streaming_thread.start()
+        logger.info("Streaming server started on http://127.0.0.1:8765")
+
+    def run_tray_mode(config_path: str | None = None):
+        """Run with system tray (default)."""
+        app = ActiveAssistantApp()
+        
+        # Run async initialization
+        asyncio.run(app.initialize(config_path))
+        
+        # Start streaming server
+        app.start_streaming_server()
     
     # Run tray
     app.run_tray()
@@ -187,6 +215,7 @@ def run_ui_mode(config_path: str | None = None):
     app = ActiveAssistantApp()
     
     asyncio.run(app.initialize(config_path))
+    app.start_streaming_server()
     app._launch_ui()
     
     # Also run tray for easy access

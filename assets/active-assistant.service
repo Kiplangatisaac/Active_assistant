@@ -1,0 +1,14 @@
+[Unit]
+Description=Active Assistant - AI Desktop Assistant
+After=graphical-session.target
+Wants=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=active-assistant --tray
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=graphical-session.target

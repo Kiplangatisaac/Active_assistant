@@ -1,0 +1,70 @@
+# 1. Feature PRs: branch starts with feat/ or feature/
+feat:
+  - head-branch: ['^feat/', '^feature/', '.*-feat-.*']
+
+# 2. Bug Fix PRs: branch starts with fix/, bugfix/, or hotfix/
+fix:
+  - head-branch: ['^fix/', '^bugfix/', '^hotfix/', '.*-fix-.*']
+
+# 3. Documentation PRs: markdown files, docs dir, or docs/ branch
+docs:
+  - head-branch: ['^docs/']
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '**/*.md'
+          - 'LICENSE'
+
+# 4. Web / Frontend: changes inside web/ directory
+frontend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'web/**'
+
+# 5. Python / Backend: changes in Python sources
+backend:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+          - '*.py'
+
+# 6. CI / CD Workflow Changes: changes in .github
+ci:
+  - head-branch: ['^ci/']
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+# 7. Dependencies: branch starts with dependabot/ or lockfile changes
+dependencies:
+  - head-branch: ['^dependabot/']
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'requirements.txt'
+          - 'pyproject.toml'
+          - 'setup.py'
+          - 'Cargo.lock'
+          - 'web/package-lock.json'
+
+# 8. Testing: changes in test suites or e2e specs
+test:
+  - head-branch: ['^test/']
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tests/**'
+          - 'web/e2e/**'
+          - 'web/playwright.config.ts'
+
+# 9. Rust / Daemon: changes in Rust sources or Cargo manifests
+rust:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'crates/**'
+          - 'Cargo.toml'
+          - 'Cargo.lock'
+
+# 10. Release / Changelog: changes to release config
+release:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/release.yml'

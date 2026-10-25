@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Active Assistant
+Comment=AI-powered desktop assistant with vision, voice, and plugins
+Exec=active-assistant --ui
+Icon=active-assistant
+Terminal=false
+Type=Application
+Categories=Office;Utility;AI;ArtificialIntelligence;
+StartupNotify=true
+Keywords=assistant;ai;voice;vision;automation;
+X-GNOME-UsesNotifications=true

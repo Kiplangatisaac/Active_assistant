@@ -1,0 +1,30 @@
+[package]
+name = "active_daemon"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+tower-http = { version = "0.5", features = ["cors"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+async-stream = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+subtle = "2.5"
+rand = "0.8"
+hex = "0.4"
+directories = "5.0"
+keyring = "2.1"
+notify-rust = "4.10"
+rusqlite = { version = "0.31", features = ["bundled"] }
+tree-sitter = "0.22"
+tree-sitter-rust = "0.21"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

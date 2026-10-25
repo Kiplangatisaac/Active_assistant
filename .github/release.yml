@@ -1,0 +1,45 @@
+changelog:
+  categories:
+    - title: "🚀 Features & Enhancements"
+      labels:
+        - "enhancement"
+        - "feature"
+        - "feat"
+
+    - title: "🐛 Bug Fixes & Stability"
+      labels:
+        - "bug"
+        - "fix"
+        - "bugfix"
+
+    - title: "⚡ Performance Improvements"
+      labels:
+        - "performance"
+        - "perf"
+
+    - title: "🔒 Security Patches"
+      labels:
+        - "security"
+
+    - title: "📦 Dependency Updates"
+      labels:
+        - "dependencies"
+        - "deps"
+
+    - title: "🛠 Maintenance & Chores"
+      labels:
+        - "chore"
+        - "documentation"
+        - "docs"
+        - "refactor"
+
+    - title: "Other Changes"
+      labels:
+        - "*"
+
+  exclude:
+    labels:
+      - "ignore-for-release"
+      - "skip-changelog"
+    authors:
+      - "dependabot[bot]"
