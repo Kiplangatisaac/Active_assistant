@@ -20,8 +20,29 @@ import sys
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent
+# Support GitHub Actions workspace (may be nested: /home/runner/work/repo/repo)
+if os.environ.get("GITHUB_WORKSPACE"):
+    GW = Path(os.environ["GITHUB_WORKSPACE"])
+    if (GW / "active_assistant.spec").exists():
+        PROJECT_DIR = GW
+    elif (GW / "Active_assistant" / "active_assistant.spec").exists():
+        PROJECT_DIR = GW / "Active_assistant"
+    elif (GW / "active_assistant" / "active_assistant.spec").exists():
+        PROJECT_DIR = GW / "active_assistant"
+
+# Fallback: use current working directory if spec not found yet
+if not (PROJECT_DIR / "active_assistant.spec").exists():
+    cwd = Path.cwd()
+    if (cwd / "active_assistant.spec").exists():
+        PROJECT_DIR = cwd
+    elif (cwd / "Active_assistant" / "active_assistant.spec").exists():
+        PROJECT_DIR = cwd / "Active_assistant"
+
 DIST_DIR = PROJECT_DIR / "dist"
 BUILD_DIR = PROJECT_DIR / "build"
+
+print(f"[DEBUG] Project dir: {PROJECT_DIR}")
+print(f"[DEBUG] Spec file exists: {(PROJECT_DIR / 'active_assistant.spec').exists()}")
 
 IS_WINDOWS = sys.platform == "win32"
 IS_MACOS = sys.platform == "darwin"
@@ -30,8 +51,10 @@ IS_LINUX = sys.platform.startswith("linux")
 
 def run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess:
     """Run a command and print output."""
-    print(f"[RUN] {' '.join(cmd)}")
-    return subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=check)
+    if cwd is None:
+        cwd = PROJECT_DIR
+    print(f"[RUN] {' '.join(cmd)} (cwd={cwd})")
+    return subprocess.run(cmd, cwd=str(cwd), check=check)
 
 
 def ensure_pyinstaller() -> None:
