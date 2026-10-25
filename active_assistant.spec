@@ -9,7 +9,9 @@ import platform
 from pathlib import Path
 
 # Get the directory containing this spec file
-SPEC_DIR = Path(__file__).resolve().parent
+# Note: __file__ is not available in PyInstaller spec execution context,
+# so we use Path.cwd() instead
+SPEC_DIR = Path.cwd()
 MAIN_SCRIPT = SPEC_DIR / "src" / "active_assistant" / "main.py"
 
 # Icon file (platform-specific)
